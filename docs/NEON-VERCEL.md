@@ -39,6 +39,12 @@ Le catalogue de forfaits est initialisé par `database/neon-schema.sql` :
 
 Chaque établissement possède au plus un abonnement dans `school_subscriptions`. Le forfait est référencé dans `subscription_plans`; le prix et la limite appliqués sont conservés sur l'abonnement pour garder une trace de l'offre contractuelle. Le schéma seul ne bloque pas encore l'ajout d'élèves : ce contrôle doit être effectué dans l'API serveur, dans une transaction, avant chaque création d'élève. Le paiement doit être confirmé par notification signée du prestataire côté serveur, jamais uniquement par une redirection du navigateur.
 
+## Forfaits dans l’application actuelle (Supabase)
+
+L’interface de gestion scolaire utilise encore Supabase pour l’authentification et les données. Avant d’utiliser l’écran « Abonnement » et les plafonds d’élèves, ouvre Supabase → SQL Editor et exécute une seule fois `supabase/subscription-plans.sql`. Ce script crée le catalogue, rattache chaque établissement au forfait Essentiel par défaut et bloque côté base les inscriptions au-delà de 100 ou 300 élèves selon le forfait. Le forfait Illimité utilise une limite SQL nulle (aucun plafond).
+
+Le script ne déclenche aucun prélèvement. L’interface affiche les trois tarifs, mais la montée/descente de forfait et le paiement en ligne attendent l’intégration et la validation d’un prestataire de paiement. La migration complète de Supabase vers Neon est un chantier séparé; ne configure pas encore l’interface comme si elle utilisait Neon.
+
 ## Sécurité minimale avant production
 
 - Hash de mot de passe côté serveur (bcrypt ou Argon2), jamais en clair.
