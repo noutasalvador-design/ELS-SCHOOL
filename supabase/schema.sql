@@ -192,3 +192,35 @@ with check(public.has_school_role(school_id,array['school_director','accountant'
 -- Sécurité : ne jamais exposer la clé service_role dans l'application front-end.
 -- Avant lancement réel : tester l'isolation entre deux écoles, les permissions par rôle,
 -- la sauvegarde, la conservation des données et les exigences applicables au Bénin.
+
+
+-- Vérifications supplémentaires : empêcher d'associer des données de deux écoles.
+create or replace function public.validate_student_class_school()
+returns trigger language plpgsql set search_path=public
+as $$
+begin
+ if new.class_id is not null and not exists(
+   select 1 from public.classes c where c.id=new.class_id and c.school_id=new.school_id
+ ) then raise exception 'La classe sélectionnée appartient à un autre établissement'; end if;
+ return new;
+end;
+$$;
+create trigger students_class_school_guard before insert or update of class_id,school_id on public.students
+for each row execute procedure public.validate_student_class_school();
+
+create or replace function public.validate_related_student_school()
+returns trigger language plpgsql set search_path=public
+as $$
+begin
+ if not exists(select 1 from public.students s where s.id=new.student_id and s.school_id=new.school_id) then
+   raise exception 'Cet élève appartient à un autre établissement';
+ end if;
+ return new;
+end;
+$$;
+create trigger attendance_student_school_guard before insert or update of student_id,school_id on public.attendance
+for each row execute procedure public.validate_related_student_school();
+create trigger grades_student_school_guard before insert or update of student_id,school_id on public.grades
+for each row execute procedure public.validate_related_student_school();
+create trigger fee_payments_student_school_guard before insert or update of student_id,school_id on public.fee_payments
+for each row execute procedure public.validate_related_student_school();
