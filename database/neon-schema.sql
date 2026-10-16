@@ -98,16 +98,40 @@ create table if not exists fee_payments (
   unique (school_id,receipt_number)
 );
 
+-- Catalogue des forfaits mensuels (FCFA / XOF).
+-- Les limites sont contrôlées côté serveur au moment de l'inscription d'un élève.
+create table if not exists subscription_plans (
+  code text primary key check (code in ('essentiel','standard','illimite')),
+  name text not null,
+  monthly_price_xof integer not null check (monthly_price_xof >= 0),
+  student_limit integer,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  check (student_limit is null or student_limit > 0)
+);
+
+insert into subscription_plans (code, name, monthly_price_xof, student_limit)
+values
+  ('essentiel', 'Essentiel', 5000, 100),
+  ('standard', 'Standard', 10000, 300),
+  ('illimite', 'Illimité', 25000, null)
+on conflict (code) do update set
+  name = excluded.name,
+  monthly_price_xof = excluded.monthly_price_xof,
+  student_limit = excluded.student_limit,
+  active = true;
+
 -- Abonnement du logiciel par établissement, distinct des frais scolaires des élèves.
 create table if not exists school_subscriptions (
   id uuid primary key default gen_random_uuid(),
   school_id uuid not null unique references schools(id) on delete cascade,
   plan_code text not null default 'essentiel'
-    check (plan_code in ('essentiel','standard')),
+    references subscription_plans(code),
   status text not null default 'trial'
     check (status in ('trial','active','past_due','cancelled','suspended')),
-  monthly_price_xof integer not null default 3000 check (monthly_price_xof >= 0),
-  currency char(3) not null default 'XOF',
+  monthly_price_xof integer not null default 5000 check (monthly_price_xof >= 0),
+  student_limit integer not null default 100 check (student_limit > 0),
+  currency char(3) not null default 'XOF' check (currency = 'XOF'),
   current_period_start timestamptz,
   current_period_end timestamptz,
   provider text,
