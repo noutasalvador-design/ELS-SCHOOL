@@ -17,6 +17,11 @@ type PaymentRow = { id: string; student_id: string; receipt_number: string; amou
 type Page = "Accueil" | "Élèves" | "Classes" | "Présences" | "Notes" | "Scolarité" | "Abonnement";
 type SubscriptionRow = { plan_code: "essentiel" | "standard" | "illimite"; status: string; monthly_price_xof: number; student_limit: number | null; current_period_end: string | null };
 type SubscriptionPlan = { code: "essentiel" | "standard" | "illimite"; name: string; monthly_price_xof: number; student_limit: number | null };
+const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
+  { code: "essentiel", name: "Essentiel", monthly_price_xof: 5000, student_limit: 100 },
+  { code: "standard", name: "Standard", monthly_price_xof: 10000, student_limit: 300 },
+  { code: "illimite", name: "Illimité", monthly_price_xof: 25000, student_limit: null }
+];
 
 function localDate() {
   const d = new Date();
@@ -39,7 +44,7 @@ export default function App() {
   const [schoolName, setSchoolName] = useState("");
   const [school, setSchool] = useState<SchoolRow | null>(null);
   const [schoolSubscription, setSchoolSubscription] = useState<SubscriptionRow | null>(null);
-  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(DEFAULT_SUBSCRIPTION_PLANS);
   const [subscriptionError, setSubscriptionError] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
@@ -91,7 +96,7 @@ export default function App() {
     let active = true;
     async function loadSubscription() {
       if (!supabase || !school?.id) {
-        setSchoolSubscription(null); setSubscriptionPlans([]); setSubscriptionError("");
+        setSchoolSubscription(null); setSubscriptionPlans(DEFAULT_SUBSCRIPTION_PLANS); setSubscriptionError("");
         return;
       }
       const [subscriptionResult, plansResult] = await Promise.all([
@@ -100,7 +105,8 @@ export default function App() {
       ]);
       if (!active) return;
       if (subscriptionResult.error || plansResult.error) {
-        setSubscriptionError("Pour afficher les forfaits, exécute d’abord supabase/subscription-plans.sql dans Supabase → SQL Editor.");
+        setSubscriptionPlans(DEFAULT_SUBSCRIPTION_PLANS);
+        setSubscriptionError("Les forfaits ci-dessous sont indicatifs. Exécute supabase/subscription-plans.sql dans Supabase → SQL Editor pour activer la lecture du forfait et le blocage des plafonds.");
         return;
       }
       setSchoolSubscription(subscriptionResult.data as SubscriptionRow | null);
