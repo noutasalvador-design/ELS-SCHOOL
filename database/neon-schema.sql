@@ -130,7 +130,7 @@ create table if not exists school_subscriptions (
   status text not null default 'trial'
     check (status in ('trial','active','past_due','cancelled','suspended')),
   monthly_price_xof integer not null default 5000 check (monthly_price_xof >= 0),
-  student_limit integer not null default 100 check (student_limit > 0),
+  student_limit integer default 100 check (student_limit is null or student_limit > 0),
   currency char(3) not null default 'XOF' check (currency = 'XOF'),
   current_period_start timestamptz,
   current_period_end timestamptz,
