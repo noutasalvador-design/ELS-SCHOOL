@@ -3,3 +3,23 @@
 @media(max-width:1000px){.sidebar{width:220px}.main{margin-left:220px}.content{padding:25px 20px}.topbar{padding:0 20px}.class-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.sidebar{position:static;width:100%;min-height:auto;padding:13px 15px}.sidebar .brand{padding-bottom:12px}.school-chip,.nav-title,.sidebar-foot{display:none}.sidebar nav{display:flex;overflow-x:auto;padding-bottom:3px}.nav-item{width:auto;flex-shrink:0;padding:9px 10px;font-size:11px}.nav-item svg{width:16px}.app-layout{display:flex;flex-direction:column}.main{margin-left:0}.topbar{height:53px;padding:0 15px}.content{padding:22px 13px}.page-title h1{font-size:23px}.stats{gap:8px}.stat-card{padding:12px}.stat-card>strong{font-size:18px}.stat-card p{font-size:10px;line-height:1.4}.stat-icon{width:32px;height:32px}.panel{padding:14px}.panel-head{align-items:flex-start;flex-direction:column}.search,.search input{width:100%}.student-form,.class-form{grid-template-columns:1fr}.class-form button{width:100%}.class-grid{grid-template-columns:1fr 1fr}footer{flex-direction:column;line-height:1.5}.auth-card{padding:26px 22px}}
 @media(max-width:390px){.stats{grid-template-columns:1fr}.class-grid{grid-template-columns:1fr}.nav-item{gap:7px}}
+
+
+/* Modules opérationnels : présences, notes et règlements */
+.secondary-stats{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:-7px}
+.module-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;align-items:end;background:#f8fafc;border:1px solid #edf1f6;border-radius:10px;padding:16px;margin:18px 0}
+.module-form label{display:grid;gap:7px;font-size:11px;font-weight:700;color:#50647a;min-width:0}
+.module-form input,.module-form select,.status-select{width:100%;min-width:0;border:1px solid #dfe6ee;border-radius:8px;padding:10px 11px;outline:none;color:#253a50;background:#fff;font-size:12px}
+.module-form input:focus,.module-form select:focus,.status-select:focus{border-color:#638ec2;box-shadow:0 0 0 3px #eaf2fc}
+.module-form button{min-height:38px}
+.grade-form{grid-template-columns:repeat(3,minmax(0,1fr))}
+.attendance-summary{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:10px 0;color:#78899b;font-size:11px}
+.attendance-summary span{display:inline-flex;align-items:center;gap:6px}
+.attendance-summary svg{color:#278760}
+.list-heading{margin-top:24px}
+.fee-total{display:grid;gap:5px;text-align:right}
+.fee-total small{font-size:10px;color:#8996a5}
+.fee-total strong{font-size:17px;color:#1d3b56;font-family:Manrope,sans-serif}
+.status-select{max-width:160px;padding:8px 9px}
+@media(max-width:1000px){.module-form,.grade-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.module-form,.grade-form{grid-template-columns:1fr;padding:13px}.module-form button{width:100%}.attendance-summary{flex-direction:column}.fee-total{text-align:left}.secondary-stats{grid-template-columns:1fr}.list-heading{margin-top:20px}}
