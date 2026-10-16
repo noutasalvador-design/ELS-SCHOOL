@@ -74,6 +74,7 @@ export default function App() {
     if (user) void loadSchool();
     else {
       setSchool(null); setStudents([]); setClasses([]); setAttendance([]); setGrades([]); setPayments([]);
+      setBulletinGrades([]); setBulletinStudentId(""); setSelectedReceipt(null); setAttendanceStatus({});
     }
   }, [user]);
 
