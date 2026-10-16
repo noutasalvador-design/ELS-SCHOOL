@@ -23,3 +23,39 @@
 .status-select{max-width:160px;padding:8px 9px}
 @media(max-width:1000px){.module-form,.grade-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.module-form,.grade-form{grid-template-columns:1fr;padding:13px}.module-form button{width:100%}.attendance-summary{flex-direction:column}.fee-total{text-align:left}.secondary-stats{grid-template-columns:1fr}.list-heading{margin-top:20px}}
+
+
+/* Aperçus de bulletin et de reçu, également adaptés à l'impression */
+.bulletin-tools{margin-top:26px;border-top:1px solid #edf1f6;padding-top:5px}
+.bulletin-paper,.receipt-paper{background:#fff;border:1px solid #e5eaf0;border-radius:12px;padding:25px;margin-top:20px;color:#25384b}
+.report-heading{text-align:center;border-bottom:2px solid #d9ae57;padding-bottom:16px;margin-bottom:20px}
+.report-heading>span{font-size:10px;font-weight:800;letter-spacing:1.5px;color:#a47d31}
+.report-heading h2{font-family:Manrope,sans-serif;font-size:21px;letter-spacing:.6px;color:#142f4b;margin:9px 0 5px}
+.report-heading p{margin:0;font-size:11px;color:#7d8d9e}
+.report-student{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:14px;margin:20px 0;padding:15px;background:#f7f9fc;border-radius:8px}
+.report-student>div{display:grid;gap:5px;align-content:start}
+.report-student small,.receipt-reference small{font-size:9px;font-weight:800;letter-spacing:.8px;color:#8593a3}
+.report-student strong{font-size:12px;color:#203c55}
+.report-student span{font-size:10px;color:#7c8d9e}
+.report-foot{font-size:10px;line-height:1.6;color:#74869a;margin:20px 0}
+.signature-lines{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:40px;padding-top:10px}
+.signature-lines span{padding-top:25px;border-top:1px solid #bac5d0;font-size:10px;color:#65788b;text-align:center}
+.receipt-reference{display:grid;gap:7px;text-align:center;background:#f7f9fc;border:1px dashed #c8d3df;border-radius:9px;padding:15px;margin:16px 0 22px}
+.receipt-reference strong{font-family:Manrope,sans-serif;font-size:19px;letter-spacing:1px;color:#142f4b}
+.receipt-details{max-width:650px;margin:0 auto}
+.receipt-details p{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 0;border-bottom:1px solid #edf0f4;margin:0;font-size:11px}
+.receipt-details p span{color:#7d8d9e}
+.receipt-details p strong{text-align:right;color:#253d55}
+.receipt-paper>.primary{margin-top:14px}
+@media(max-width:700px){.bulletin-paper,.receipt-paper{padding:15px}.report-student{grid-template-columns:1fr}.signature-lines{gap:16px}.receipt-details p{gap:10px}}
+@media print{
+  @page{size:A4;margin:14mm}
+  body *{visibility:hidden!important}
+  .print-area,.print-area *{visibility:visible!important}
+  .print-area{position:fixed!important;left:0!important;top:0!important;width:100%!important;max-width:none!important;max-height:none!important;overflow:visible!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important;color:#111!important}
+  .print-area .table-wrap{overflow:visible!important}
+  .print-area table{width:100%!important;white-space:normal!important;font-size:9pt!important}
+  .print-area th,.print-area td{padding:7px 5px!important;color:#111!important;border-color:#d7dce1!important}
+  .print-area .report-heading{border-color:#a77d2c!important}
+  .no-print{display:none!important;visibility:hidden!important}
+}
