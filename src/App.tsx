@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
-import { BookOpen, GraduationCap, LayoutDashboard, LogOut, Plus, Search, School, Wallet, CalendarCheck, FileText, Users, CheckCircle2, ReceiptText } from "lucide-react";
+import { BookOpen, GraduationCap, LayoutDashboard, LogOut, Plus, Search, School, Wallet, CalendarCheck, FileText, Users, CheckCircle2, ReceiptText, CreditCard, BadgeCheck } from "lucide-react";
 import "./styles.css";
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -14,7 +14,9 @@ type AttendanceStatus = "present" | "absent" | "late" | "excused";
 type AttendanceRow = { id: string; student_id: string; attendance_date: string; status: AttendanceStatus; note: string | null };
 type GradeRow = { id: string; student_id: string; subject: string; term: string; score: number; coefficient: number; comment: string | null; created_at: string };
 type PaymentRow = { id: string; student_id: string; receipt_number: string; amount_xof: number; payment_method: string; paid_at: string; note: string | null };
-type Page = "Accueil" | "Élèves" | "Classes" | "Présences" | "Notes" | "Scolarité";
+type Page = "Accueil" | "Élèves" | "Classes" | "Présences" | "Notes" | "Scolarité" | "Abonnement";
+type SubscriptionRow = { plan_code: "essentiel" | "standard" | "illimite"; status: string; monthly_price_xof: number; student_limit: number | null; current_period_end: string | null };
+type SubscriptionPlan = { code: "essentiel" | "standard" | "illimite"; name: string; monthly_price_xof: number; student_limit: number | null };
 
 function localDate() {
   const d = new Date();
@@ -36,6 +38,9 @@ export default function App() {
   const [fullName, setFullName] = useState("");
   const [schoolName, setSchoolName] = useState("");
   const [school, setSchool] = useState<SchoolRow | null>(null);
+  const [schoolSubscription, setSchoolSubscription] = useState<SubscriptionRow | null>(null);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
+  const [subscriptionError, setSubscriptionError] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
@@ -81,6 +86,30 @@ export default function App() {
   useEffect(() => {
     if (school?.id) void loadAttendance(school.id, attendanceDate);
   }, [school?.id, attendanceDate]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadSubscription() {
+      if (!supabase || !school?.id) {
+        setSchoolSubscription(null); setSubscriptionPlans([]); setSubscriptionError("");
+        return;
+      }
+      const [subscriptionResult, plansResult] = await Promise.all([
+        supabase.from("school_subscriptions").select("plan_code,status,monthly_price_xof,student_limit,current_period_end").eq("school_id", school.id).maybeSingle(),
+        supabase.from("subscription_plans").select("code,name,monthly_price_xof,student_limit").eq("active", true).order("monthly_price_xof")
+      ]);
+      if (!active) return;
+      if (subscriptionResult.error || plansResult.error) {
+        setSubscriptionError("Pour afficher les forfaits, exécute d’abord supabase/subscription-plans.sql dans Supabase → SQL Editor.");
+        return;
+      }
+      setSchoolSubscription(subscriptionResult.data as SubscriptionRow | null);
+      setSubscriptionPlans((plansResult.data ?? []) as SubscriptionPlan[]);
+      setSubscriptionError("");
+    }
+    void loadSubscription();
+    return () => { active = false; };
+  }, [school?.id]);
 
   useEffect(() => {
     let active = true;
@@ -266,7 +295,8 @@ export default function App() {
   const nav: { label: Page; icon: typeof LayoutDashboard }[] = [
     { label: "Accueil", icon: LayoutDashboard }, { label: "Élèves", icon: GraduationCap },
     { label: "Classes", icon: BookOpen }, { label: "Présences", icon: CalendarCheck },
-    { label: "Notes", icon: FileText }, { label: "Scolarité", icon: Wallet }
+    { label: "Notes", icon: FileText }, { label: "Scolarité", icon: Wallet },
+    { label: "Abonnement", icon: CreditCard }
   ];
 
   if (loading) return <div className="center-page">Chargement d’ELS SCHOOL MANAGER…</div>;
@@ -294,6 +324,25 @@ export default function App() {
         {bulletinStudentId && bulletinStudent && bulletinGrades.length > 0 && <div className="bulletin-paper print-area"><div className="report-heading"><span>ELS SCHOOL MANAGER</span><h2>BULLETIN DE NOTES</h2><p>{school.name} · Année scolaire {school.academic_year}</p></div><div className="report-student"><div><small>ÉLÈVE</small><strong>{bulletinStudent.first_name} {bulletinStudent.last_name}</strong><span>Matricule : {bulletinStudent.student_number}</span></div><div><small>CLASSE</small><strong>{classes.find(cl => cl.id === bulletinStudent.class_id)?.name ?? "Non affecté"}</strong><span>{bulletinTerm}</span></div><div><small>MOYENNE PONDÉRÉE</small><strong>{bulletinAverage === null ? "—" : bulletinAverage.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " / 20"}</strong><span>{bulletinGrades.length} évaluation(s)</span></div></div><div className="table-wrap"><table><thead><tr><th>MATIÈRE</th><th>NOTE / 20</th><th>COEFFICIENT</th><th>POINTS PONDÉRÉS</th><th>OBSERVATION</th></tr></thead><tbody>{bulletinGrades.map(g => <tr key={g.id}><td><strong>{g.subject}</strong></td><td>{Number(g.score).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td><td>{Number(g.coefficient).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td><td>{(Number(g.score) * Number(g.coefficient)).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td><td>{g.comment || "—"}</td></tr>)}</tbody></table></div><p className="report-foot">Moyenne calculée à partir des notes et coefficients enregistrés pour la période sélectionnée.</p><div className="signature-lines"><span>Signature de l’enseignant</span><span>Cachet et signature de la direction</span></div></div>}
       </section>}
       {page === "Scolarité" && <section className="panel"><div className="panel-head"><div><h2>Encaissements et reçus</h2><p>Enregistre les paiements scolaires en FCFA et conserve la référence du reçu.</p></div><div className="fee-total"><small>Total des 100 derniers règlements affichés</small><strong>{money(totalRecentPayments)}</strong></div></div><form onSubmit={addPayment} className="module-form grade-form"><label>Élève<select required value={feeForm.student_id} onChange={e => setFeeForm({ ...feeForm, student_id: e.target.value })}><option value="">Choisir un élève</option>{students.filter(s => s.status === "active").map(s => <option key={s.id} value={s.id}>{studentLabel(s)}</option>)}</select></label><label>Montant (FCFA)<input type="number" required min="1" step="1" value={feeForm.amount_xof} onChange={e => setFeeForm({ ...feeForm, amount_xof: e.target.value })} placeholder="Ex. 25000"/></label><label>Moyen de paiement<select value={feeForm.payment_method} onChange={e => setFeeForm({ ...feeForm, payment_method: e.target.value })}><option value="cash">Espèces</option><option value="mobile_money">Mobile Money</option><option value="bank_transfer">Virement bancaire</option><option value="other">Autre</option></select></label><label>Note (facultatif)<input maxLength={300} value={feeForm.note} onChange={e => setFeeForm({ ...feeForm, note: e.target.value })} placeholder="Ex. Première tranche"/></label><button className="primary" disabled={busy || students.length === 0}><ReceiptText size={16}/>{busy ? "Enregistrement…" : "Enregistrer et générer un reçu"}</button></form><div className="panel-head list-heading"><div><h2>Derniers règlements</h2><p>Référence du reçu, élève, date et montant.</p></div></div><div className="table-wrap"><table><thead><tr><th>REÇU</th><th>ÉLÈVE</th><th>DATE</th><th>MOYEN</th><th>MONTANT</th><th className="no-print">REÇU</th></tr></thead><tbody>{payments.map(p => <tr key={p.id}><td><strong>{p.receipt_number}</strong></td><td>{studentLabel(students.find(s => s.id === p.student_id))}</td><td>{new Date(p.paid_at).toLocaleDateString("fr-FR")}</td><td>{p.payment_method === "cash" ? "Espèces" : p.payment_method === "mobile_money" ? "Mobile Money" : p.payment_method === "bank_transfer" ? "Virement" : "Autre"}</td><td><strong>{money(p.amount_xof)}</strong></td><td className="no-print"><button type="button" className="link-button" onClick={() => setSelectedReceipt(p)}>Voir le reçu</button></td></tr>)}</tbody></table>{payments.length === 0 && <p className="empty">Aucun règlement enregistré.</p>}</div>{selectedReceipt && <div className="receipt-paper print-area"><div className="report-heading"><span>ELS SCHOOL MANAGER</span><h2>REÇU DE PAIEMENT</h2><p>{school.name}</p></div><div className="receipt-reference"><small>RÉFÉRENCE DU REÇU</small><strong>{selectedReceipt.receipt_number}</strong></div><div className="receipt-details"><p><span>Élève</span><strong>{studentLabel(students.find(s => s.id === selectedReceipt.student_id))}</strong></p><p><span>Classe</span><strong>{classes.find(cl => cl.id === students.find(s => s.id === selectedReceipt.student_id)?.class_id)?.name ?? "Non affecté"}</strong></p><p><span>Date du règlement</span><strong>{new Date(selectedReceipt.paid_at).toLocaleDateString("fr-FR")}</strong></p><p><span>Moyen de paiement</span><strong>{selectedReceipt.payment_method === "cash" ? "Espèces" : selectedReceipt.payment_method === "mobile_money" ? "Mobile Money" : selectedReceipt.payment_method === "bank_transfer" ? "Virement bancaire" : "Autre"}</strong></p><p><span>Montant encaissé</span><strong>{money(selectedReceipt.amount_xof)}</strong></p>{selectedReceipt.note && <p><span>Motif / note</span><strong>{selectedReceipt.note}</strong></p>}</div><p className="report-foot">Reçu généré par ELS SCHOOL MANAGER. Conservez cette référence pour tout suivi.</p><div className="signature-lines"><span>Signature de la caisse</span><span>Cachet de l’établissement</span></div><button type="button" className="primary no-print" onClick={() => window.print()}>Imprimer / Enregistrer en PDF</button></div>}</section>}
+      {page === "Abonnement" && <section className="panel">
+        <div className="panel-head"><div><h2>Abonnement de l’établissement</h2><p>Choisis le forfait adapté au nombre d’élèves de ton école.</p></div><div className="fee-total"><small>Élèves actuellement inscrits</small><strong>{students.filter(s => s.status === "active").length}</strong></div></div>
+        {subscriptionError && <div className="alert error">{subscriptionError}</div>}
+        {!subscriptionError && schoolSubscription && <div className="subscription-current">
+          <div><span className="eyebrow">FORFAIT ACTUEL</span><h2>{schoolSubscription.plan_code === "essentiel" ? "Essentiel" : schoolSubscription.plan_code === "standard" ? "Standard" : "Illimité"}</h2><p className="muted">{schoolSubscription.status === "trial" ? "Période d’essai / configuration" : schoolSubscription.status === "active" ? "Abonnement actif" : schoolSubscription.status === "past_due" ? "Paiement en retard" : schoolSubscription.status === "cancelled" ? "Abonnement résilié" : schoolSubscription.status === "suspended" ? "Abonnement suspendu" : schoolSubscription.status}</p></div>
+          <div className="fee-total"><small>Tarif mensuel</small><strong>{money(schoolSubscription.monthly_price_xof)}</strong></div>
+          <div className="fee-total"><small>Limite du forfait</small><strong>{schoolSubscription.student_limit === null ? "Illimité" : schoolSubscription.student_limit + " élèves"}</strong></div>
+        </div>}
+        <div className="subscription-plans">{subscriptionPlans.map(plan => {
+          const isCurrent = schoolSubscription?.plan_code === plan.code;
+          return <article className={isCurrent ? "subscription-plan current" : "subscription-plan"} key={plan.code}>
+            {isCurrent && <span className="plan-current"><BadgeCheck size={15}/> Forfait actuel</span>}
+            <h3>{plan.name}</h3><p className="plan-price">{money(plan.monthly_price_xof)}<span> / mois</span></p>
+            <p>{plan.student_limit === null ? "Nombre illimité d’élèves" : "Jusqu’à " + plan.student_limit + " élèves"}</p>
+            <ul><li>Gestion des inscriptions</li><li>Classes, présences et notes</li><li>Paiements scolaires et reçus</li></ul>
+          </article>;
+        })}</div>
+        <p className="muted subscription-note">Les plafonds sont vérifiés par la base de données après installation de la migration SQL. Le changement de forfait et les paiements en ligne ne sont pas encore activés : aucun paiement n’est prélevé depuis cet écran.</p>
+      </section>}
       <footer>© {new Date().getFullYear()} ELS SCHOOL MANAGER <span>Gestion scolaire primaire · Bénin</span></footer>
     </div></main></div>;
 }
