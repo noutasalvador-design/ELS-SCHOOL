@@ -44,9 +44,17 @@ La commande `Copy-Item` convient à PowerShell sous Windows. Sur macOS/Linux, ut
 
 Pendant la migration, l'interface actuelle nécessite encore `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`. La future variable `DATABASE_URL` est exclusivement serveur : ne jamais la préfixer par `VITE_`, ne jamais l'exposer au navigateur et ne jamais la committer dans GitHub.
 
-## Abonnement mensuel
+## Forfaits mensuels ELS SCHOOL MANAGER
 
-Le schéma prévoit un abonnement par école, séparé des paiements de scolarité des élèves. Le tarif initial dans le schéma est une proposition de départ à **3 000 FCFA/mois**, et non un paiement déjà activé. Un prestataire de paiement compatible avec le Bénin, la validation serveur des notifications et une gestion des retards/résiliations restent à intégrer.
+Les forfaits sont définis dans le catalogue PostgreSQL `subscription_plans` et rattachés à chaque école via `school_subscriptions`. Les montants sont mensuels :
+
+| Forfait | Prix mensuel | Limite d'élèves |
+|---|---:|---:|
+| Essentiel | 5 000 FCFA | Jusqu'à 100 |
+| Standard | 10 000 FCFA | Jusqu'à 300 |
+| Illimité | 25 000 FCFA | Aucun plafond |
+
+La table d'abonnement conserve le forfait, le statut, la période de facturation et les identifiants éventuels du prestataire. La migration SQL est préparée, mais l'interface de facturation, l'encaissement automatique et le contrôle serveur empêchant de dépasser la limite doivent encore être intégrés avant utilisation réelle. Ne considère pas un abonnement comme payé à partir d'une simple redirection du navigateur.
 
 ## Sécurité et tests
 
