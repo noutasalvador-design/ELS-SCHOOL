@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "./_lib/db";
+import { db } from "./_lib/db";
 
 const fallbackPlans = [
   { code: "essentiel", name: "Essentiel", monthlyPriceXof: 5000, studentLimit: 100, unlimited: false },
@@ -14,8 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const pool = getPool();
-    const result = await pool.query(
+    const result = await db.query(
       "SELECT code, name, monthly_price_xof, student_limit FROM subscription_plans WHERE active = true ORDER BY monthly_price_xof ASC"
     );
     const plans = result.rows.map((row) => ({
