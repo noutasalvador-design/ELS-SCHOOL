@@ -26,7 +26,7 @@ on conflict (code) do update set
   active = true;
 
 alter table school_subscriptions
-  add column if not exists student_limit integer not null default 100;
+  add column if not exists student_limit integer default 100;
 
 alter table school_subscriptions
   drop constraint if exists school_subscriptions_plan_code_check;
@@ -44,7 +44,7 @@ set monthly_price_xof = case plan_code
     student_limit = case plan_code
       when 'essentiel' then 100
       when 'standard' then 300
-      when 'illimite' then 2147483647
+      when 'illimite' then null
       else 100
     end;
 
@@ -54,7 +54,7 @@ alter table school_subscriptions
 
 alter table school_subscriptions
   add constraint school_subscriptions_student_limit_check
-  check (student_limit > 0);
+  check (student_limit is null or student_limit > 0);
 
 do $$
 begin
@@ -71,7 +71,5 @@ end $$;
 
 commit;
 
--- Note: Illimité est représenté par une très grande limite dans l'abonnement
--- existant pour conserver un entier positif; le catalogue subscription_plans
--- garde student_limit = NULL pour indiquer qu'il n'y a aucun plafond.
+-- Le forfait Illimité conserve student_limit = NULL, sans plafond.
 -- Le contrôle effectif du nombre d'élèves doit être implémenté côté API serveur.
