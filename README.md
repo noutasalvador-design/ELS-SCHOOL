@@ -1,28 +1,36 @@
 # ELS SCHOOL MANAGER
 
-Application web SaaS de gestion scolaire pour écoles primaires au Bénin. Le principe : une école possède son espace privé ; les données sont séparées au niveau de la base de données.
+Application SaaS de gestion scolaire pour écoles primaires au Bénin. Objectif : une interface simple, sans portail parent, avec un espace privé par établissement.
 
-## Fonctions disponibles dans le code
+## Fonctions déjà présentes dans l'interface actuelle
 
 - Création de compte et connexion par e-mail et mot de passe.
 - Création de l'espace de l'école.
-- Gestion des élèves : inscription, matricule, sexe, classe et recherche.
-- Gestion des classes : CI, CP, CE1, CE2, CM1 et CM2.
-- Présences : feuille quotidienne par classe, avec les statuts présent, absent, en retard et excusé.
-- Notes : matière, période, note sur 20, coefficient et commentaire.
-- Bulletins imprimables : notes par période, moyenne pondérée, informations de l’élève et zones de signature, avec impression ou export PDF depuis le navigateur.
-- Scolarité : enregistrement du paiement en FCFA, choix du moyen de paiement, référence de reçu et reçu imprimable.
-- Tableau de bord et affichage adapté au téléphone et à l'ordinateur.
-- Premières règles RLS pour isoler les écoles et limiter certaines actions selon le rôle.
-- Vérification automatique du build configurée dans GitHub Actions.
+- Gestion des élèves et des classes CI, CP, CE1, CE2, CM1 et CM2.
+- Présences quotidiennes.
+- Notes et bulletins imprimables.
+- Enregistrement des paiements de scolarité en FCFA et reçus imprimables.
+- Tableau de bord responsive.
 
-**À noter :** la gestion des échéanciers/frais dus, la gestion des utilisateurs du personnel et l’intégration d’un paiement Mobile Money réel restent à construire. Le champ « Mobile Money » indique un moyen de paiement enregistré ; il ne débite aucun compte et ne confirme aucune transaction auprès d'un opérateur.
+## Migration Neon + Vercel en cours
 
-## Technologies
+Le dépôt contient les premiers fichiers de préparation :
+- `api/_lib/db.ts` : pool PostgreSQL côté serveur.
+- `api/health.ts` : endpoint de vérification de la connexion à Neon.
+- `database/neon-schema.sql` : schéma cible, incluant les données scolaires et la table d'abonnement mensuel.
+- `docs/NEON-VERCEL.md` : procédure de configuration et état de migration.
 
-React, TypeScript, Vite, Supabase Auth, PostgreSQL et Row Level Security (RLS).
+**Important : la migration n'est pas terminée.** L'interface dans `src/App.tsx` utilise encore Supabase Auth et les requêtes Supabase. Ne supprime pas Supabase et ne saisis pas de vraies données d'élèves tant que l'authentification et tous les modules n'ont pas été migrés et testés. Le nouvel endpoint `/api/health` teste uniquement la connexion de la base ; il ne prouve pas que l'application scolaire est déjà opérationnelle avec Neon.
 
-## Installation sur un ordinateur
+## Architecture cible
+
+- Frontend : React, TypeScript, Vite.
+- Hébergement : Vercel.
+- Base de données : Neon PostgreSQL.
+- Backend : fonctions serveur Vercel dans `api/`.
+- Source du code : GitHub.
+
+## Configuration locale actuelle
 
 Prérequis : Node.js récent (20 recommandé).
 
@@ -34,24 +42,18 @@ npm run dev
 
 La commande `Copy-Item` convient à PowerShell sous Windows. Sur macOS/Linux, utilise `cp .env.example .env`.
 
-Ouvre ensuite l'adresse locale affichée par Vite dans le terminal.
+Pendant la migration, l'interface actuelle nécessite encore `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`. La future variable `DATABASE_URL` est exclusivement serveur : ne jamais la préfixer par `VITE_`, ne jamais l'exposer au navigateur et ne jamais la committer dans GitHub.
 
-## Configuration de Supabase
+## Abonnement mensuel
 
-1. Crée un projet dans Supabase.
-2. Dans **Project Settings / API**, récupère l'URL du projet et la clé publique (*publishable* ou *anon*).
-3. Mets ces deux valeurs dans le fichier local `.env` :
-   - `VITE_SUPABASE_URL=https://...`
-   - `VITE_SUPABASE_ANON_KEY=...`
-4. Dans **SQL Editor**, ouvre le contenu de `supabase/schema.sql`, colle-le et exécute-le **une seule fois sur une base neuve**.
-5. Redémarre le serveur Vite après toute modification du fichier `.env`.
+Le schéma prévoit un abonnement par école, séparé des paiements de scolarité des élèves. Le tarif initial dans le schéma est une proposition de départ à **3 000 FCFA/mois**, et non un paiement déjà activé. Un prestataire de paiement compatible avec le Bénin, la validation serveur des notifications et une gestion des retards/résiliations restent à intégrer.
 
-N'utilise jamais la clé `service_role` dans une variable `VITE_`, dans le navigateur ou dans le dépôt. Ne mets aucune donnée réelle d'enfant dans l'environnement de test.
+## Sécurité et tests
 
-## Préparer une mise en ligne
-
-Le dépôt peut être connecté à un hébergeur compatible Vite (par exemple Vercel ou Netlify). La commande de construction est `npm run build` et le dossier généré est `dist`. Il faudra ajouter les deux variables Supabase dans les variables d'environnement de l'hébergeur.
-
-## État et sécurité
-
-Le code est en cours de développement. Le dépôt et les migrations ont été écrits, mais l'application n'a pas encore été validée par un build et un test d'intégration avec un projet Supabase réel. Avant un pilote, teste au minimum deux écoles séparées, les rôles du personnel, la création et la modification des données, les sauvegardes, et la restauration. Ne stocke que les informations nécessaires et obtiens l'accord des responsables de l'école avant tout essai avec de vraies données d'élèves.
+Avant tout pilote :
+- migrer l'authentification vers des endpoints serveur sécurisés ;
+- vérifier le rôle et l'appartenance à l'école sur chaque endpoint ;
+- tester l'isolation avec au moins deux écoles de test ;
+- ajouter limitation des tentatives de connexion et validation des entrées ;
+- préparer et tester les sauvegardes/restaurations ;
+- n'utiliser que des données fictives jusqu'à validation de la sécurité.
