@@ -85,7 +85,6 @@ begin
 end;
 $$;
 revoke all on function public.set_school_subscription_plan(uuid,text) from public;
-grant execute on function public.set_school_subscription_plan(uuid,text) to authenticated;
 
 create or replace function public.create_default_school_subscription()
 returns trigger
