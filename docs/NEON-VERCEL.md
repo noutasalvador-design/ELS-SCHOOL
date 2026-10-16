@@ -12,7 +12,7 @@
 
 1. Créer un projet sur https://neon.tech/.
 2. Copier la chaîne de connexion PostgreSQL depuis le tableau de bord Neon.
-3. Dans Neon SQL Editor, exécuter `database/neon-schema.sql` sur une base neuve.
+3. Dans Neon SQL Editor, exécuter `database/neon-schema.sql` sur une base neuve. Si tu as déjà exécuté l'ancien schéma, exécute plutôt `database/migrations/2026-10-subscription-plans.sql` une seule fois.
 4. Ne jamais publier la chaîne de connexion dans GitHub, une capture publique ou le code du navigateur.
 
 ## Étape 2 — connecter Vercel
