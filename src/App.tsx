@@ -212,7 +212,7 @@ export default function App() {
       setError("Sélectionne un élève et indique un montant positif en FCFA."); return;
     }
     setBusy(true); setError(""); setMessage("");
-    const receipt = "ELS-" + localDate().replaceAll("-", "") + "-" + crypto.randomUUID().slice(0, 6).toUpperCase();
+    const receipt = "ELS-" + localDate().replace(/-/g, "") + "-" + crypto.randomUUID().slice(0, 6).toUpperCase();
     const { error } = await supabase.from("fee_payments").insert({
       school_id: school.id, student_id: feeForm.student_id, receipt_number: receipt,
       amount_xof: amount, payment_method: feeForm.payment_method, note: feeForm.note.trim() || null,
