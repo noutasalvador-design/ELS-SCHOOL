@@ -10,12 +10,13 @@ Application web SaaS de gestion scolaire pour écoles primaires au Bénin. Le pr
 - Gestion des classes : CI, CP, CE1, CE2, CM1 et CM2.
 - Présences : feuille quotidienne par classe, avec les statuts présent, absent, en retard et excusé.
 - Notes : matière, période, note sur 20, coefficient et commentaire.
-- Scolarité : enregistrement du paiement en FCFA, choix du moyen de paiement et référence de reçu.
+- Bulletins imprimables : notes par période, moyenne pondérée, informations de l’élève et zones de signature, avec impression ou export PDF depuis le navigateur.
+- Scolarité : enregistrement du paiement en FCFA, choix du moyen de paiement, référence de reçu et reçu imprimable.
 - Tableau de bord et affichage adapté au téléphone et à l'ordinateur.
 - Premières règles RLS pour isoler les écoles et limiter certaines actions selon le rôle.
 - Vérification automatique du build configurée dans GitHub Actions.
 
-**À noter :** les notes sont enregistrées et listées, mais la mise en page du bulletin imprimable, la gestion des échéanciers/frais dus, les reçus imprimables, la gestion des utilisateurs du personnel et l'intégration d'un paiement Mobile Money réel restent à construire. Le champ « Mobile Money » indique un moyen de paiement enregistré ; il ne débite aucun compte et ne confirme aucune transaction auprès d'un opérateur.
+**À noter :** la gestion des échéanciers/frais dus, la gestion des utilisateurs du personnel et l’intégration d’un paiement Mobile Money réel restent à construire. Le champ « Mobile Money » indique un moyen de paiement enregistré ; il ne débite aucun compte et ne confirme aucune transaction auprès d'un opérateur.
 
 ## Technologies
 
