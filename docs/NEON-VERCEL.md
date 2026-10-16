@@ -27,9 +27,17 @@
 
 Le dépôt contient désormais le premier connecteur Neon côté serveur, un endpoint de santé et le schéma PostgreSQL cible. La migration n'est pas terminée : l'interface `src/App.tsx` utilise encore Supabase Auth et ses requêtes directes. Ne supprime pas encore le projet Supabase et ne considère pas le site prêt pour de vraies écoles. La prochaine étape est de migrer l'authentification et chaque module vers une API serveur sécurisée, puis de tester l'isolation entre écoles.
 
-## Abonnement mensuel
+## Forfaits mensuels
 
-Le schéma prévoit un abonnement par école séparé des paiements de scolarité. Le prix initial indicatif est de 3 000 FCFA/mois, modifiable. Le champ de statut ne constitue pas un système de paiement : il faudra intégrer un prestataire compatible avec le Bénin, vérifier ses notifications côté serveur et ne jamais activer un abonnement sur la seule base d'une redirection du navigateur.
+Le catalogue de forfaits est initialisé par `database/neon-schema.sql` :
+
+| Code | Forfait | Prix mensuel | Limite |
+|---|---|---:|---:|
+| `essentiel` | Essentiel | 5 000 FCFA | 100 élèves |
+| `standard` | Standard | 10 000 FCFA | 300 élèves |
+| `illimite` | Illimité | 25 000 FCFA | Sans limite |
+
+Chaque établissement possède au plus un abonnement dans `school_subscriptions`. Le forfait est référencé dans `subscription_plans`; le prix et la limite appliqués sont conservés sur l'abonnement pour garder une trace de l'offre contractuelle. Le schéma seul ne bloque pas encore l'ajout d'élèves : ce contrôle doit être effectué dans l'API serveur, dans une transaction, avant chaque création d'élève. Le paiement doit être confirmé par notification signée du prestataire côté serveur, jamais uniquement par une redirection du navigateur.
 
 ## Sécurité minimale avant production
 
