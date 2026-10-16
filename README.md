@@ -19,7 +19,8 @@ Le dépôt contient les premiers fichiers de préparation :
 - `api/health.ts` : endpoint de vérification de la connexion à Neon.
 - `api/plans.ts` : endpoint public `GET /api/plans` qui renvoie le catalogue des forfaits.
 - `database/neon-schema.sql` : schéma cible, incluant les données scolaires et les forfaits mensuels.
-- `database/migrations/2026-10-subscription-plans.sql` : migration pour une base qui utilise déjà l'ancien schéma.
+- `database/migrations/2026-10-subscription-plans.sql` : migration Neon pour une base qui utilise déjà l'ancien schéma.
+- `supabase/subscription-plans.sql` : catalogue des forfaits et blocage en base des inscriptions au-delà du plafond dans l’application Supabase actuelle.
 - `docs/NEON-VERCEL.md` : procédure de configuration et état de migration.
 
 **Important : la migration n'est pas terminée.** L'interface dans `src/App.tsx` utilise encore Supabase Auth et les requêtes Supabase. Ne supprime pas Supabase et ne saisis pas de vraies données d'élèves tant que l'authentification et tous les modules n'ont pas été migrés et testés. Le nouvel endpoint `/api/health` teste uniquement la connexion de la base ; il ne prouve pas que l'application scolaire est déjà opérationnelle avec Neon.
