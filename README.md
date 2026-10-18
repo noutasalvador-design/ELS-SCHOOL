@@ -1,46 +1,36 @@
 # ELS SCHOOL MANAGER
 
-Application SaaS de gestion scolaire pour écoles primaires au Bénin. Objectif : une interface simple, sans portail parent, avec un espace privé par établissement.
+SaaS simple de gestion scolaire pour les écoles primaires au Bénin, sans portail parent. Frontend React/Vite, API serveur Vercel et PostgreSQL hébergé sur Neon.
 
-## Fonctions déjà présentes dans l'interface actuelle
+## Fonctions
 
-- Création de compte et connexion par e-mail et mot de passe.
-- Création de l'espace de l'école.
+- Création de compte et connexion e-mail/mot de passe avec session en cookie HttpOnly.
+- Création d’un espace privé par établissement.
 - Gestion des élèves et des classes CI, CP, CE1, CE2, CM1 et CM2.
 - Présences quotidiennes.
 - Notes et bulletins imprimables.
 - Enregistrement des paiements de scolarité en FCFA et reçus imprimables.
-- Tableau de bord responsive.
+- Abonnements SaaS : Essentiel 5 000 FCFA (100 élèves), Standard 10 000 FCFA (300 élèves), Illimité 25 000 FCFA.
+- SasPay : démarrage de checkout et traitement serveur du webhook (à valider avec les identifiants réels).
 
-## Migration Neon + Vercel en cours
+## Architecture actuelle
 
-Le dépôt contient les premiers fichiers de préparation :
-- `api/_lib/db.ts` : pool PostgreSQL côté serveur.
-- `api/health.ts` : endpoint de vérification de la connexion à Neon.
-- `api/plans.ts` : endpoint public `GET /api/plans` qui renvoie le catalogue des forfaits.
-- `database/neon-schema.sql` : schéma cible, incluant les données scolaires et les forfaits mensuels.
-- `database/migrations/2026-10-subscription-plans.sql` : migration Neon pour une base qui utilise déjà l'ancien schéma.
-- `supabase/subscription-plans.sql` : catalogue des forfaits et limites d’élèves.
-- `supabase/saspay-payments.sql` : registre de paiement privé utilisé par les fonctions serveur SasPay.
-- `api/saspay/start.ts` : crée une session de paiement SasPay après vérification de la session et du rôle de direction.
-- `api/saspay/callback.ts` : vérifie la signature du webhook, relit le statut chez SasPay et active le forfait côté serveur.
-- `api/_lib/saspay.ts` : catalogue des tarifs et helpers serveur.
-- `docs/NEON-VERCEL.md` : procédure de configuration et état de migration.
-- `docs/SASPAY-SETUP.md` : configuration du checkout, du webhook et des variables privées.
+- `src/App.tsx` appelle les routes `/api/*`, et ne se connecte plus directement à Supabase.
+- `api/_lib/db.ts` fournit la connexion PostgreSQL serveur via `DATABASE_URL`.
+- `api/_lib/auth.ts` gère les mots de passe hashés (scrypt) et les sessions HMAC dans un cookie HttpOnly.
+- `api/auth/*` gère inscription, connexion, vérification de session et déconnexion.
+- `api/data.ts` gère les données scolaires et contrôle l’appartenance à l’établissement côté serveur.
+- `api/health.ts` vérifie la connexion à Neon.
+- `api/saspay/start.ts` et `api/saspay/callback.ts` utilisent Neon pour le registre des paiements et l’activation des forfaits.
+- `database/neon-schema.sql` définit le schéma PostgreSQL.
+- `database/migrations/2026-10-neon-payments.sql` ajoute le registre des paiements SasPay.
+- `docs/NEON-VERCEL.md` contient les étapes de configuration.
 
-**Important : la migration n'est pas terminée.** L'interface dans `src/App.tsx` utilise encore Supabase Auth et les requêtes Supabase. Ne supprime pas Supabase et ne saisis pas de vraies données d'élèves tant que l'authentification et tous les modules n'ont pas été migrés et testés. Le nouvel endpoint `/api/health` teste uniquement la connexion de la base ; il ne prouve pas que l'application scolaire est déjà opérationnelle avec Neon.
+Les anciens scripts dans `supabase/` sont conservés comme références pour l’ancienne version, mais l’application migrée n’en dépend plus. Les comptes et données qui se trouvaient déjà dans Supabase ne sont **pas copiés automatiquement** vers Neon. Si tu as des données à conserver, exporte-les et importe-les dans Neon avant de fermer l’ancien projet.
 
-## Architecture cible
+## Installation locale
 
-- Frontend : React, TypeScript, Vite.
-- Hébergement : Vercel.
-- Base de données : Neon PostgreSQL.
-- Backend : fonctions serveur Vercel dans `api/`.
-- Source du code : GitHub.
-
-## Configuration locale actuelle
-
-Prérequis : Node.js récent (20 recommandé).
+Prérequis : Node.js 20 ou plus récent.
 
 ```bash
 npm install
@@ -48,41 +38,29 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-La commande `Copy-Item` convient à PowerShell sous Windows. Sur macOS/Linux, utilise `cp .env.example .env`.
+Sous macOS/Linux, utilise `cp .env.example .env`. Remplis `.env` avec les vraies valeurs privées avant d’utiliser les routes API. Vite n’expose au navigateur que les variables préfixées par `VITE_`; aucune clé secrète ne doit porter ce préfixe.
 
-Pendant la migration, l'interface actuelle nécessite encore `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`. La future variable `DATABASE_URL` est exclusivement serveur : ne jamais la préfixer par `VITE_`, ne jamais l'exposer au navigateur et ne jamais la committer dans GitHub.
+## Configuration Neon + Vercel
 
-## Forfaits mensuels ELS SCHOOL MANAGER
+1. Crée un projet Neon sur https://neon.tech/.
+2. Dans Neon SQL Editor, exécute `database/neon-schema.sql` sur une base neuve.
+3. Exécute ensuite `database/migrations/2026-10-neon-payments.sql`.
+4. Dans Vercel → Project Settings → Environment Variables, ajoute `DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL`, `SASPAY_API_KEY` et `SASPAY_WEBHOOK_SECRET`. Ne colle jamais ces secrets dans une conversation ou dans GitHub.
+5. Configure dans le tableau de bord SasPay le webhook `https://TON-DOMAINE/api/saspay/callback`.
+6. Redéploie, puis teste `/api/health`. Le résultat attendu est `{"ok":true,"service":"els-school-manager","database":"connected"}`.
 
-Les forfaits sont définis dans le catalogue PostgreSQL `subscription_plans` et rattachés à chaque école via `school_subscriptions`. Les montants sont mensuels :
+Le schéma initial doit être exécuté une seule fois sur une base neuve. Ne l’exécute pas sur une base déjà utilisée sans vérifier son contenu.
 
-| Forfait | Prix mensuel | Limite d'élèves |
+## Forfaits
+
+| Forfait | Prix mensuel | Limite |
 |---|---:|---:|
-| Essentiel | 5 000 FCFA | Jusqu'à 100 |
-| Standard | 10 000 FCFA | Jusqu'à 300 |
-| Illimité | 25 000 FCFA | Aucun plafond |
+| Essentiel | 5 000 FCFA | 100 élèves |
+| Standard | 10 000 FCFA | 300 élèves |
+| Illimité | 25 000 FCFA | Sans limite |
 
-La table d'abonnement conserve le forfait, le statut, la période de facturation et les identifiants du prestataire. Les fonctions SasPay et les boutons de paiement sont maintenant présents dans le dépôt, mais ils ne sont pas encore validés en production : les variables Vercel, le webhook marchand et les migrations SQL doivent être configurés puis testés. Ne considère pas un abonnement comme payé à partir d'une simple redirection du navigateur.
+## État et validation
 
-## Sécurité et tests
+Le code de l’application a été migré vers des routes Neon côté serveur, mais cela ne signifie pas que le déploiement ou les paiements ont déjà été testés. Avant une utilisation réelle, il faut configurer les variables, exécuter les scripts SQL et valider l’inscription, la connexion, l’isolation entre deux écoles de test, les limites d’élèves et le webhook SasPay. Utilise uniquement des données fictives jusqu’à ces vérifications.
 
-Avant tout pilote :
-- migrer l'authentification vers des endpoints serveur sécurisés ;
-- vérifier le rôle et l'appartenance à l'école sur chaque endpoint ;
-- tester l'isolation avec au moins deux écoles de test ;
-- ajouter limitation des tentatives de connexion et validation des entrées ;
-- préparer et tester les sauvegardes/restaurations ;
-- n'utiliser que des données fictives jusqu'à validation de la sécurité.
-
-
-## Intégration SasPay — configuration avant essai
-
-Le dépôt contient maintenant le flux serveur de création de session et de traitement du webhook. Il reste **à configurer et à tester** avant de considérer l’encaissement comme opérationnel.
-
-1. Dans Supabase SQL Editor, exécute dans cet ordre `supabase/schema.sql` (uniquement si le schéma n’est pas déjà installé), `supabase/subscription-plans.sql`, puis `supabase/saspay-payments.sql`. Ne réexécute pas le schéma initial sur une base déjà utilisée sans examiner les conséquences.
-2. Dans Vercel → Project Settings → Environment Variables, ajoute les variables privées listées dans `.env.example`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SASPAY_API_KEY`, `SASPAY_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL`. Les deux variables publiques `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` restent nécessaires à l’interface actuelle.
-3. Dans le tableau de bord SasPay, configure l’URL du webhook : `https://TON-DOMAINE/api/saspay/callback`. Configure le secret de signature du webhook et renseigne exactement la même valeur dans `SASPAY_WEBHOOK_SECRET` sur Vercel.
-4. Vérifie que la clé SasPay autorise les encaissements (PAYIN ou BOTH), puis redéploie Vercel après avoir configuré les variables.
-5. Effectue d’abord un paiement de test avec le compte/environnement de test fourni par SasPay. Vérifie le webhook et l’activation avant de passer en production.
-
-**Important :** ne partage pas les clés API dans le chat et ne les ajoute jamais à GitHub. Le retour du navigateur ne valide pas le paiement : le webhook signé et la vérification du statut côté serveur sont nécessaires. Les renouvellements sont ici des périodes de 30 jours activées après chaque paiement confirmé ; aucune facturation automatique récurrente n’est supposée.
+L’intégration SasPay reprend le format d’événements actuellement attendu par le code du projet; confirme le nom des événements, la signature et l’endpoint de statut avec la documentation de ton compte marchand avant une mise en production.
