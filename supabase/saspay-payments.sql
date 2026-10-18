@@ -17,7 +17,8 @@ create table if not exists public.school_payment_transactions (
   status text not null default 'pending' check (status in ('pending','paid','failed')),
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  paid_at timestamptz
+  paid_at timestamptz,
+  subscription_activated_at timestamptz
 );
 
 create index if not exists school_payment_transactions_school_created_idx
