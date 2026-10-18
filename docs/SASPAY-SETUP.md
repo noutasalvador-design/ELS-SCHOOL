@@ -1,55 +1,51 @@
 # Configuration SasPay — ELS SCHOOL MANAGER
 
-## Ce qui a été ajouté
+## Architecture actuelle
 
-- `POST /api/saspay/start` : vérifie le jeton Supabase et le rôle de direction, crée une transaction locale, puis demande une session checkout SasPay pour le forfait choisi.
-- `POST /api/saspay/callback` : vérifie la signature HMAC du webhook et son horodatage, relit le statut de la session auprès de SasPay et n’active le forfait qu’après confirmation serveur.
-- `supabase/saspay-payments.sql` : registre privé des transactions de forfait.
-- L’écran Abonnement propose les trois forfaits et ouvre le checkout hébergé SasPay.
+L’application utilise désormais Neon PostgreSQL via les fonctions serveur Vercel. Le navigateur ne se connecte pas directement à Neon et les fonctions SasPay ne dépendent plus de Supabase.
 
-## 1. Appliquer les migrations Supabase
+- `POST /api/saspay/start` : vérifie la session signée, le rôle de direction et l’appartenance à l’école, puis crée une session checkout SasPay.
+- `POST /api/saspay/callback` : vérifie la signature et l’horodatage, relit le statut chez SasPay, contrôle le montant et le forfait, puis active l’abonnement dans Neon.
+- `database/migrations/2026-10-neon-payments.sql` : crée le registre privé des paiements.
+- L’écran Abonnement propose 5 000 FCFA / 100 élèves, 10 000 FCFA / 300 élèves et 25 000 FCFA / élèves illimités.
 
-Dans Supabase → SQL Editor :
+## 1. Initialiser Neon
 
-1. Si la base de données scolaire n’est pas encore installée, exécuter d’abord `supabase/schema.sql`.
-2. Exécuter `supabase/subscription-plans.sql`.
-3. Exécuter `supabase/saspay-payments.sql`.
+Dans Neon SQL Editor, sur une base neuve :
 
-Ne réexécute pas le schéma initial sur une base de production déjà utilisée : il contient des créations d’objets qui peuvent échouer si les objets existent déjà.
+1. Exécute `database/neon-schema.sql`.
+2. Exécute `database/migrations/2026-10-neon-payments.sql`.
 
-## 2. Ajouter les variables dans Vercel
+Ne relance pas le schéma initial sur une base déjà utilisée sans examiner son contenu. Les données existantes dans Supabase ne sont pas importées automatiquement.
 
-Dans Vercel → projet ELS SCHOOL → Settings → Environment Variables, configure les valeurs suivantes pour l’environnement de test d’abord, puis Production :
+## 2. Variables privées dans Vercel
 
-- `VITE_SUPABASE_URL` — URL publique du projet Supabase utilisée par l’interface.
-- `VITE_SUPABASE_ANON_KEY` — clé publique/anon de Supabase.
-- `SUPABASE_URL` — URL du même projet Supabase pour les fonctions serveur.
-- `SUPABASE_SERVICE_ROLE_KEY` — clé service-role Supabase, privée et serveur uniquement.
-- `SASPAY_API_KEY` — clé API SasPay autorisée à créer des encaissements (PAYIN ou BOTH).
-- `SASPAY_WEBHOOK_SECRET` — secret de signature du webhook SasPay. Le nom `SASPAY_CALLBACK_SECRET` est aussi accepté pour compatibilité avec le dépôt OTENTIQ.
-- `NEXT_PUBLIC_SITE_URL` — URL HTTPS publique du déploiement ELS SCHOOL, sans barre oblique finale.
+Dans Vercel → ELS SCHOOL → Settings → Environment Variables, configure :
 
-Ne mets jamais `SUPABASE_SERVICE_ROLE_KEY`, `SASPAY_API_KEY` ou le secret webhook dans une variable préfixée `VITE_`. Ne partage pas ces valeurs dans le chat et ne les committe pas dans GitHub.
+- `DATABASE_URL` — chaîne de connexion PostgreSQL copiée depuis Neon, avec SSL.
+- `AUTH_SECRET` — secret aléatoire unique d’au moins 32 caractères pour signer les sessions.
+- `NEXT_PUBLIC_SITE_URL` — URL HTTPS publique du déploiement, sans barre oblique finale.
+- `SASPAY_API_KEY` — clé API privée SasPay autorisée à créer des encaissements.
+- `SASPAY_WEBHOOK_SECRET` — secret de signature du webhook SasPay. Le code accepte aussi `SASPAY_CALLBACK_SECRET` comme alias.
 
-## 3. Configurer le webhook dans SasPay
+Ne préfixe aucune de ces variables par `VITE_`. Ne publie pas les secrets dans GitHub ou dans une conversation. Après leur ajout, redéploie le projet.
 
-Dans le tableau de bord marchand SasPay, configure l’URL de notification HTTPS :
+## 3. Webhook marchand SasPay
+
+Dans le tableau de bord SasPay, configure l’URL HTTPS :
 
 `https://TON-DOMAINE-ELS-SCHOOL/api/saspay/callback`
 
-Utilise le secret de signature associé au webhook et copie-le dans la variable privée Vercel. Le nom de l’événement attendu pour une confirmation de transaction est `transaction.success`; les événements non réussis sont ignorés. Le code vérifie la signature HMAC-SHA256 sur le corps brut et exige un horodatage à moins de cinq minutes de l’heure serveur.
+Le code attend actuellement l’événement `transaction.success` et les en-têtes `X-Webhook-Signature`, `X-Webhook-Timestamp` et `X-Webhook-Event`. Il calcule une signature HMAC-SHA256 sur l’horodatage et le corps brut, puis interroge l’API de statut SasPay avant toute activation.
 
-## 4. Déployer et tester
+**À confirmer avec la documentation de ton compte marchand :** nom exact de l’événement, format de signature, en-têtes, URL de statut et forme de la réponse. Ces détails n’ont pas été vérifiés par un paiement de bout en bout.
 
-1. Enregistre les variables puis lance un nouveau déploiement Vercel.
-2. Connecte-toi à ELS SCHOOL avec un compte qui a le rôle `school_director`.
-3. Ouvre Abonnement, choisis un forfait et teste le checkout avec les identifiants et moyens de test fournis par SasPay.
-4. Vérifie dans Supabase que la transaction passe à `paid` et que `school_subscriptions` contient le bon forfait, le statut `active` et une période de 30 jours.
-5. Teste également les paiements échoués, les webhooks répétés et une signature invalide.
+## 4. Tests avant production
 
-## Limites connues
+1. Ouvre `/api/health` et vérifie que Neon est connecté.
+2. Crée un compte de test, puis un établissement fictif.
+3. Teste le checkout SasPay avec les moyens de test fournis par le marchand.
+4. Vérifie dans Neon que la transaction est marquée payée et que l’abonnement utilise le bon forfait et une période de 30 jours.
+5. Teste un paiement refusé, un webhook répété, une signature incorrecte et un montant incorrect.
 
-- L’intégration n’a pas été validée avec un encaissement réel : il faut configurer les variables, le webhook marchand et exécuter un test de bout en bout.
-- Le retour du navigateur ne valide jamais un paiement ; seule la confirmation côté serveur peut activer le forfait.
-- Chaque paiement confirmé active une période de 30 jours. Ce code ne suppose pas une facturation automatique récurrente.
-- L’application ELS SCHOOL utilise encore Supabase pour l’authentification et les données scolaires. La migration complète vers Neon est un chantier distinct et n’est pas terminée.
+La redirection du navigateur ne valide jamais le paiement. Seule la vérification côté serveur peut activer le forfait. Cette implémentation ne prétend pas fournir de prélèvements automatiques récurrents : elle active 30 jours à la suite d’un paiement confirmé.
