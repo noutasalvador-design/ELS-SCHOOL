@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.api.json && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "typescript": "~5.6.3",
     "vite": "^6.0.5",
     "@types/pg": "^8.15.5",
-    "@vercel/node": "^5.3.21"
+    "@vercel/node": "^5.3.21",
+    "@types/node": "^22.10.2"
   }
 }
