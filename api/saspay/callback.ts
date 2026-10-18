@@ -65,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const admin = serverSupabase();
     let query = admin.from("school_payment_transactions")
-      .select("id,school_id,plan_code,amount_xof,currency,reference,provider_session_id,status")
+      .select("id,school_id,plan_code,amount_xof,currency,reference,provider_session_id,status,created_at,paid_at,subscription_activated_at")
       .limit(1);
     if (typeof localReference === "string" && localReference) query = query.eq("reference", localReference);
     else query = query.eq("provider_session_id", sessionId);
@@ -106,6 +106,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const plan = PLAN_CATALOG[payment.plan_code as keyof typeof PLAN_CATALOG];
     if (!plan || plan.amount !== Number(payment.amount_xof)) return res.status(400).json({ ok: false });
 
+    if (payment.subscription_activated_at) {
+      return res.status(200).json({ ok: true, activated: true, alreadyProcessed: true });
+    }
+
+    const { data: existingSubscription, error: existingSubscriptionError } = await admin
+      .from("school_subscriptions")
+      .select("status,provider_subscription_id,current_period_start")
+      .eq("school_id", payment.school_id)
+      .maybeSingle();
+    if (existingSubscriptionError) return res.status(500).json({ ok: false });
+
+    // If the same successful checkout already activated the plan, mark it processed
+    // without extending the 30-day period on duplicate webhook delivery.
+    if (existingSubscription?.status === "active" && existingSubscription.provider_subscription_id === verifiedSessionId) {
+      const { error: markError } = await admin.from("school_payment_transactions")
+        .update({ subscription_activated_at: new Date().toISOString() })
+        .eq("id", payment.id);
+      if (markError) return res.status(500).json({ ok: false });
+      return res.status(200).json({ ok: true, activated: true, alreadyProcessed: true });
+    }
+
+    // A delayed duplicate for an older payment must not replace a newer active plan.
+    if (payment.status === "paid" && existingSubscription?.status === "active" &&
+        existingSubscription.current_period_start &&
+        new Date(existingSubscription.current_period_start).getTime() > new Date(payment.created_at).getTime()) {
+      return res.status(200).json({ ok: true, activated: false, ignored: true, reason: "superseded_payment" });
+    }
+
     if (payment.status !== "paid") {
       const { data: updated, error: paymentUpdateError } = await admin
         .from("school_payment_transactions")
@@ -139,6 +167,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }, { onConflict: "school_id" });
     if (subscriptionError) {
       console.error("ELS SasPay subscription activation failed", subscriptionError.code);
+      return res.status(500).json({ ok: false });
+    }
+
+    const { error: markActivatedError } = await admin.from("school_payment_transactions")
+      .update({ subscription_activated_at: new Date().toISOString() })
+      .eq("id", payment.id);
+    if (markActivatedError) {
+      // A retry will recognize provider_subscription_id on the school subscription
+      // and mark the transaction without extending the period a second time.
+      console.error("ELS SasPay activation marker failed", markActivatedError.code);
       return res.status(500).json({ ok: false });
     }
 
