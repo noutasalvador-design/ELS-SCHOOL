@@ -79,16 +79,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (school.role !== "school_director" && !["teacher","accountant","secretary"].includes(school.role)) return bad(res,"Accès refusé.",403);
 
     if (action === "addStudent") {
+      if (!["school_director","secretary"].includes(school.role)) return bad(res,"Tu rôle ne permet pas d’inscrire des élèves.",403);
       const studentNumber = String(body.student_number || "").trim();
       const firstName = String(body.first_name || "").trim();
       const lastName = String(body.last_name || "").trim();
       const gender = body.gender === "F" || body.gender === "M" ? body.gender : null;
       const classId = typeof body.class_id === "string" && body.class_id ? body.class_id : null;
       if (!studentNumber || !firstName || !lastName) return bad(res,"Matricule, prénom et nom sont obligatoires.");
+      if (classId) {
+        const classCheck = await db.query("select id from classes where id=$1 and school_id=$2",[classId,school.id]);
+        if (!classCheck.rowCount) return bad(res,"La classe sélectionnée n’appartient pas à cet établissement.",403);
+      }
       const result = await db.query("insert into students(school_id,student_number,first_name,last_name,gender,class_id,status) values($1,$2,$3,$4,$5,$6,'active') returning id", [school.id,studentNumber,firstName,lastName,gender,classId]);
       return res.status(201).json({ok:true,id:result.rows[0].id});
     }
     if (action === "addClass") {
+      if (!["school_director","secretary"].includes(school.role)) return bad(res,"Ton rôle ne permet pas de créer des classes.",403);
       const name = String(body.name || "").trim();
       const level = String(body.level || "CI");
       if (!name || !["CI","CP","CE1","CE2","CM1","CM2"].includes(level)) return bad(res,"Nom ou niveau de classe invalide.");
@@ -96,6 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(201).json({ok:true,id:result.rows[0].id});
     }
     if (action === "saveAttendance") {
+      if (!["school_director","teacher","secretary"].includes(school.role)) return bad(res,"Ton rôle ne permet pas de gérer les présences.",403);
       if (!Array.isArray(body.rows) || body.rows.length > 300) return bad(res,"Liste de présences invalide.");
       const client = await db.connect();
       try {
@@ -113,6 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } catch(e) { await client.query("rollback"); if ((e as Error).message==="STUDENT_SCOPE") return bad(res,"Un élève n’appartient pas à cet établissement.",403); throw e; } finally { client.release(); }
     }
     if (action === "addGrade") {
+      if (!["school_director","teacher"].includes(school.role)) return bad(res,"Ton rôle ne permet pas de saisir des notes.",403);
       const score = Number(body.score), coefficient = Number(body.coefficient);
       if (!body.student_id || !String(body.subject||"").trim() || !Number.isFinite(score) || score<0 || score>20 || !Number.isFinite(coefficient) || coefficient<=0) return bad(res,"Note ou coefficient invalide.");
       const student = await db.query("select id from students where id=$1 and school_id=$2",[body.student_id,school.id]);
@@ -122,6 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(201).json({ok:true});
     }
     if (action === "addPayment") {
+      if (!["school_director","accountant"].includes(school.role)) return bad(res,"Ton rôle ne permet pas d’enregistrer des paiements.",403);
       const amount = Number(body.amount_xof);
       if (!body.student_id || !Number.isSafeInteger(amount) || amount<=0 || !["cash","mobile_money","bank_transfer","other"].includes(body.payment_method)) return bad(res,"Données de paiement invalides.");
       const student = await db.query("select id from students where id=$1 and school_id=$2",[body.student_id,school.id]);
