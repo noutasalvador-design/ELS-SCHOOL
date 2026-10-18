@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import type { AppUser } from "./auth";
 
 export const SASPAY_API_BASE = "https://api.saspay.me/api/v1";
 export const PLAN_CATALOG = {
@@ -20,4 +19,3 @@ export function publicOrigin(req: VercelRequest): string {
   if (typeof host === "string" && host.length > 0) return `${protocol}://${host}`;
   throw new Error("Public site URL is not configured");
 }
-export function safeEmail(user: AppUser) { return user.email; }
