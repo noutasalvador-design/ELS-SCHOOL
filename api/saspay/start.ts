@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, "POST");
 
   const apiKey = process.env.SASPAY_API_KEY;
-  const webhookSecret = process.env.SASPAY_WEBHOOK_SECRET;
+  const webhookSecret = process.env.SASPAY_WEBHOOK_SECRET || process.env.SASPAY_CALLBACK_SECRET;
   if (!apiKey || !webhookSecret) {
     return res.status(503).json({
       ok: false,
