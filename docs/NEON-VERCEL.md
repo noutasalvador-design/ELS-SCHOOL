@@ -1,55 +1,63 @@
-# Migration ELS SCHOOL MANAGER vers Neon + Vercel
+# ELS SCHOOL MANAGER — Neon + Vercel
 
-## Architecture cible
+## Architecture migrée
 
-- GitHub : code source et déploiements automatiques.
-- Vercel : hébergement de l'interface React/Vite et des fonctions API.
-- Neon : PostgreSQL.
-- L'interface React appellera `/api/*`; elle ne doit jamais se connecter directement à PostgreSQL.
-- `DATABASE_URL` reste une variable serveur privée et ne doit jamais commencer par `VITE_`.
+- Interface : React + TypeScript + Vite.
+- Hébergement et API serveur : Vercel.
+- Base de données : Neon PostgreSQL.
+- Authentification : endpoints serveur, mots de passe hashés avec scrypt et cookie de session HttpOnly signé.
+- Le navigateur appelle uniquement `/api/*`; il ne reçoit jamais la chaîne `DATABASE_URL`.
 
-## Étape 1 — créer la base Neon
+## 1. Initialiser Neon
 
-1. Créer un projet sur https://neon.tech/.
-2. Copier la chaîne de connexion PostgreSQL depuis le tableau de bord Neon.
-3. Dans Neon SQL Editor, exécuter `database/neon-schema.sql` sur une base neuve. Si tu as déjà exécuté l'ancien schéma, exécute plutôt `database/migrations/2026-10-subscription-plans.sql` une seule fois.
-4. Ne jamais publier la chaîne de connexion dans GitHub, une capture publique ou le code du navigateur.
+1. Crée un projet sur https://neon.tech/.
+2. Dans Neon SQL Editor, exécute `database/neon-schema.sql` sur une base neuve.
+3. Exécute ensuite `database/migrations/2026-10-neon-payments.sql`.
+4. Si tu avais déjà des utilisateurs ou données dans Supabase, ils ne sont pas copiés automatiquement. Il faut les exporter, les transformer pour le schéma Neon, puis les importer avant de fermer Supabase.
 
-## Étape 2 — connecter Vercel
+Ne relance pas le schéma complet sur une base existante sans examiner son contenu.
 
-1. Importer le dépôt `noutasalvador-design/ELS-SCHOOL` depuis https://vercel.com/.
-2. Utiliser la commande de build `npm run build` et le dossier de sortie `dist`.
-3. Ajouter `DATABASE_URL` dans Project Settings → Environment Variables, pour Preview et Production selon le besoin.
-4. Redéployer après avoir ajouté ou changé une variable.
-5. Après déploiement, ouvrir `/api/health`. Le résultat attendu est `{"ok":true,"service":"els-school-manager","database":"connected"}`.
+## 2. Variables Vercel
 
-## État réel de la migration
+Dans Vercel → Project → Settings → Environment Variables, ajoute ces variables pour l’environnement choisi :
 
-Le dépôt contient désormais le premier connecteur Neon côté serveur, un endpoint de santé et le schéma PostgreSQL cible. La migration n'est pas terminée : l'interface `src/App.tsx` utilise encore Supabase Auth et ses requêtes directes. Ne supprime pas encore le projet Supabase et ne considère pas le site prêt pour de vraies écoles. La prochaine étape est de migrer l'authentification et chaque module vers une API serveur sécurisée, puis de tester l'isolation entre écoles.
+- `DATABASE_URL` : chaîne PostgreSQL fournie par Neon, avec SSL.
+- `AUTH_SECRET` : secret aléatoire unique d’au moins 32 caractères. Garde-le privé.
+- `NEXT_PUBLIC_SITE_URL` : URL canonique du site, par exemple `https://ton-projet.vercel.app`.
+- `SASPAY_API_KEY` : clé API privée SasPay.
+- `SASPAY_WEBHOOK_SECRET` : secret de signature du webhook SasPay.
+
+Ne mets aucune de ces valeurs dans une variable `VITE_*), dans le dépôt GitHub ou dans un message. Après configuration, relance un déploiement.
+
+## 3. Webhook SasPay
+
+Configure l’URL suivante dans le tableau de bord marchand SasPay :
+
+`https://TON-DOMAINE/api/saspay/callback`
+
+Le démarrage de paiement utilise `POST /api/saspay/start`. Le callback vérifie la signature, relit le statut auprès de SasPay, vérifie le montant et le forfait, puis active l’abonnement dans Neon. Cette intégration doit être testée avec le format de signature, le nom d’événement et l’API de statut exacts fournis par SasPay; aucun paiement réel n’a été validé par le dépôt seul.
+
+## 4. Vérifications après déploiement
+
+1. Ouvre `/api/health`. Attendu : `{"ok":true,"service":"els-school-manager","database":"connected"}`.
+2. Crée un compte test avec un mot de passe d’au moins 10 caractères.
+3. Crée une école de test, ajoute une classe puis un élève.
+4. Crée un deuxième compte et une deuxième école. Vérifie que le second compte ne peut pas lire les données de la première école.
+5. Vérifie le plafond du forfait Essentiel et teste les changements de forfait seulement en mode test.
+6. Vérifie les événements SasPay dans les journaux Vercel avant toute mise en production.
 
 ## Forfaits mensuels
 
-Le catalogue de forfaits est initialisé par `database/neon-schema.sql` :
+| Code | Prix | Plafond d’élèves |
+|---|---:|---:|
+| `essentiel` | 5 000 FCFA | 100 |
+| `standard` | 10 000 FCFA | 300 |
+| `illimite` | 25 000 FCFA | Aucun plafond |
 
-| Code | Forfait | Prix mensuel | Limite |
-|---|---|---:|---:|
-| `essentiel` | Essentiel | 5 000 FCFA | 100 élèves |
-| `standard` | Standard | 10 000 FCFA | 300 élèves |
-| `illimite` | Illimité | 25 000 FCFA | Sans limite |
+## Sécurité et limites connues
 
-Chaque établissement possède au plus un abonnement dans `school_subscriptions`. Le forfait est référencé dans `subscription_plans`; le prix et la limite appliqués sont conservés sur l'abonnement pour garder une trace de l'offre contractuelle. Le schéma seul ne bloque pas encore l'ajout d'élèves : ce contrôle doit être effectué dans l'API serveur, dans une transaction, avant chaque création d'élève. Le paiement doit être confirmé par notification signée du prestataire côté serveur, jamais uniquement par une redirection du navigateur.
-
-## Forfaits dans l’application actuelle (Supabase)
-
-L’interface de gestion scolaire utilise encore Supabase pour l’authentification et les données. Avant d’utiliser l’écran « Abonnement » et les plafonds d’élèves, ouvre Supabase → SQL Editor et exécute une seule fois `supabase/subscription-plans.sql`. Ce script crée le catalogue, rattache chaque établissement au forfait Essentiel par défaut et bloque côté base les inscriptions au-delà de 100 ou 300 élèves selon le forfait. Le forfait Illimité utilise une limite SQL nulle (aucun plafond).
-
-Le script ne déclenche aucun prélèvement. L’interface affiche les trois tarifs, mais la montée/descente de forfait et le paiement en ligne attendent l’intégration et la validation d’un prestataire de paiement. La migration complète de Supabase vers Neon est un chantier séparé; ne configure pas encore l’interface comme si elle utilisait Neon.
-
-## Sécurité minimale avant production
-
-- Hash de mot de passe côté serveur (bcrypt ou Argon2), jamais en clair.
-- Sessions sécurisées (cookies HttpOnly/Secure/SameSite) ou jetons courts vérifiés côté serveur.
-- Contrôle d'accès et d'appartenance à l'école sur chaque endpoint.
-- Validation de toutes les données, limitation des tentatives de connexion et journaux sans données personnelles.
-- Sauvegardes et tests de restauration.
-- Ne pas utiliser de vraies informations d'enfants avant les tests et validations nécessaires.
+- Les sessions utilisent un cookie HttpOnly, SameSite=Lax, Secure en production, avec signature HMAC et expiration de 7 jours.
+- Les mots de passe sont hashés avec scrypt; les mots de passe en clair ne sont jamais stockés.
+- Les routes de données contrôlent l’appartenance de l’utilisateur à l’établissement côté serveur.
+- Une limitation de tentatives de connexion, une politique de sauvegarde/restauration et des tests d’intrusion restent nécessaires avant une vraie utilisation.
+- Les anciens fichiers sous `supabase/` sont des références de l’ancienne version, pas des dépendances du frontend migré.
