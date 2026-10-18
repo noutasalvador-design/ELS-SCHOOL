@@ -1,11 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { api, type AppUser } from "./lib/api";
 import { BookOpen, GraduationCap, LayoutDashboard, LogOut, Plus, Search, School, Wallet, CalendarCheck, FileText, Users, CheckCircle2, ReceiptText, CreditCard, BadgeCheck } from "lucide-react";
 import "./styles.css";
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-const supabase: SupabaseClient | null = url && key ? createClient(url, key) : null;
+
 
 type Student = { id: string; student_number: string; first_name: string; last_name: string; gender: string | null; class_id: string | null; status: string };
 type ClassRow = { id: string; name: string; level: string; academic_year: string };
@@ -35,7 +33,7 @@ function studentLabel(student: Student | undefined) {
 }
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
@@ -73,14 +71,11 @@ export default function App() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-    supabase.auth.getSession().then(({ data, error: sessionError }) => {
-      if (sessionError) setError("Impossible de vérifier la session. Recharge la page.");
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
-    return () => subscription.unsubscribe();
+    let active = true;
+    api<{ user: AppUser | null }>("/api/auth/me").then(result => { if (active) setUser(result.user); })
+      .catch(() => { if (active) setError("Impossible de vérifier la session. Vérifie que la base Neon est configurée."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -98,23 +93,16 @@ export default function App() {
   useEffect(() => {
     let active = true;
     async function loadSubscription() {
-      if (!supabase || !school?.id) {
-        setSchoolSubscription(null); setSubscriptionPlans(DEFAULT_SUBSCRIPTION_PLANS); setSubscriptionError("");
-        return;
-      }
-      const [subscriptionResult, plansResult] = await Promise.all([
-        supabase.from("school_subscriptions").select("plan_code,status,monthly_price_xof,student_limit,current_period_end").eq("school_id", school.id).maybeSingle(),
-        supabase.from("subscription_plans").select("code,name,monthly_price_xof,student_limit").eq("active", true).order("monthly_price_xof")
-      ]);
-      if (!active) return;
-      if (subscriptionResult.error || plansResult.error) {
+      if (!school?.id) { setSchoolSubscription(null); setSubscriptionPlans(DEFAULT_SUBSCRIPTION_PLANS); setSubscriptionError(""); return; }
+      try {
+        const result = await api<{ subscription: SubscriptionRow | null; plans: SubscriptionPlan[] }>("/api/data?action=overview");
+        if (!active) return;
+        setSchoolSubscription(result.subscription); setSubscriptionPlans(result.plans); setSubscriptionError("");
+      } catch {
+        if (!active) return;
         setSubscriptionPlans(DEFAULT_SUBSCRIPTION_PLANS);
-        setSubscriptionError("Les forfaits ci-dessous sont indicatifs. Exécute supabase/subscription-plans.sql dans Supabase → SQL Editor pour activer la lecture du forfait et le blocage des plafonds.");
-        return;
+        setSubscriptionError("Impossible de charger les forfaits depuis Neon. Vérifie la configuration de la base.");
       }
-      setSchoolSubscription(subscriptionResult.data as SubscriptionRow | null);
-      setSubscriptionPlans((plansResult.data ?? []) as SubscriptionPlan[]);
-      setSubscriptionError("");
     }
     void loadSubscription();
     return () => { active = false; };
@@ -130,214 +118,104 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    const loadBulletin = async () => {
-      if (!supabase || !school?.id || !bulletinStudentId) {
-        setBulletinGrades([]);
-        return;
-      }
-      const { data, error: bulletinError } = await supabase.from("grades")
-        .select("id,student_id,subject,term,score,coefficient,comment,created_at")
-        .eq("school_id", school.id).eq("student_id", bulletinStudentId).eq("term", bulletinTerm)
-        .order("subject");
-      if (!active) return;
-      if (bulletinError) setError("Impossible de préparer le bulletin : " + bulletinError.message);
-      else setBulletinGrades((data ?? []) as GradeRow[]);
-    };
+    async function loadBulletin() {
+      if (!school?.id || !bulletinStudentId) { setBulletinGrades([]); return; }
+      try {
+        const result = await api<{ rows: GradeRow[] }>(`/api/data?action=bulletin&student_id=${encodeURIComponent(bulletinStudentId)}&term=${encodeURIComponent(bulletinTerm)}`);
+        if (active) setBulletinGrades(result.rows ?? []);
+      } catch (e) { if (active) setError("Impossible de préparer le bulletin : " + (e as Error).message); }
+    }
     void loadBulletin();
     return () => { active = false; };
   }, [school?.id, bulletinStudentId, bulletinTerm, bulletinRefresh]);
 
   async function loadSchool() {
-    if (!supabase || !user) return;
+    if (!user) return;
     setError("");
-    const { data: membership, error: membershipError } = await supabase
-      .from("school_memberships").select("school_id, schools(id,name,academic_year)")
-      .eq("user_id", user.id).eq("active", true).limit(1).maybeSingle();
-    if (membershipError) { setError("Impossible de charger l’école. Vérifie que le schéma SQL est installé dans Supabase."); return; }
-    const schoolData = membership?.schools as unknown as SchoolRow | undefined;
-    if (!membership || !schoolData) { setSchool(null); return; }
-    setSchool(schoolData);
-    const [studentsResult, classesResult, gradesResult, paymentsResult] = await Promise.all([
-      supabase.from("students").select("id,student_number,first_name,last_name,gender,class_id,status").eq("school_id", schoolData.id).order("last_name"),
-      supabase.from("classes").select("id,name,level,academic_year").eq("school_id", schoolData.id).order("level"),
-      supabase.from("grades").select("id,student_id,subject,term,score,coefficient,comment,created_at").eq("school_id", schoolData.id).order("created_at", { ascending: false }).limit(100),
-      supabase.from("fee_payments").select("id,student_id,receipt_number,amount_xof,payment_method,paid_at,note").eq("school_id", schoolData.id).order("paid_at", { ascending: false }).limit(100)
-    ]);
-    if (studentsResult.error || classesResult.error) setError("Erreur de chargement des élèves ou des classes. Vérifie les politiques RLS.");
-    setStudents((studentsResult.data ?? []) as Student[]);
-    setClasses((classesResult.data ?? []) as ClassRow[]);
-    if (!gradesResult.error) setGrades((gradesResult.data ?? []) as GradeRow[]);
-    if (!paymentsResult.error) setPayments((paymentsResult.data ?? []) as PaymentRow[]);
-    if (gradesResult.error || paymentsResult.error) setMessage("Certains modules nécessitent une vérification des permissions de compte dans Supabase.");
+    try {
+      const result = await api<{ school: SchoolRow | null; students: Student[]; classes: ClassRow[]; grades: GradeRow[]; payments: PaymentRow[]; subscription: SubscriptionRow | null; plans: SubscriptionPlan[] }>("/api/data?action=overview");
+      setSchool(result.school); setStudents(result.students ?? []); setClasses(result.classes ?? []);
+      setGrades(result.grades ?? []); setPayments(result.payments ?? []);
+      setSchoolSubscription(result.subscription ?? null); setSubscriptionPlans(result.plans?.length ? result.plans : DEFAULT_SUBSCRIPTION_PLANS); setSubscriptionError("");
+    } catch (e) { setError("Impossible de charger l’espace de l’école : " + (e as Error).message); }
   }
 
   async function loadAttendance(schoolId: string, date: string) {
-    if (!supabase) return;
-    const { data, error: attendanceError } = await supabase.from("attendance")
-      .select("id,student_id,attendance_date,status,note").eq("school_id", schoolId).eq("attendance_date", date);
-    if (attendanceError) { setError("Impossible de charger les présences. Vérifie le schéma SQL et les permissions."); return; }
-    const rows = (data ?? []) as AttendanceRow[];
-    setAttendance(rows);
-    setAttendanceStatus(previous => {
-      const next: Record<string, AttendanceStatus> = {};
-      rows.forEach(row => { next[row.student_id] = row.status; });
-      return next;
-    });
-  }
-
-  async function submitAuth(e: FormEvent) {
-    e.preventDefault(); if (!supabase) return;
-    setBusy(true); setError(""); setMessage("");
-    const result = authMode === "signup"
-      ? await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim() } } })
-      : await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (result.error) setError(result.error.message);
-    else if (authMode === "signup" && !result.data.session) setMessage("Compte créé. Vérifie ton e-mail si la confirmation est activée, puis connecte-toi.");
-    else setMessage(authMode === "signup" ? "Compte créé. Tu peux maintenant créer ton établissement." : "Connexion réussie.");
-    setBusy(false);
-  }
-
-  async function startSubscriptionPayment(planCode: SubscriptionPlan["code"]) {
-    if (!supabase || !school) {
-      setPaymentMessage("Connecte-toi et ouvre l’espace de ton établissement avant de payer.");
-      return;
-    }
-    setPaymentBusyPlan(planCode);
-    setPaymentMessage("");
-    setError("");
     try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (sessionError || !token) {
-        setPaymentMessage("Ta session a expiré. Reconnecte-toi puis réessaie.");
-        setPaymentBusyPlan(null);
-        return;
-      }
-      const response = await fetch("/api/saspay/start", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ school_id: school.id, plan_code: planCode }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.ok || typeof result.checkout_url !== "string") {
-        setPaymentMessage(result.message || "Impossible de démarrer le paiement SasPay. Réessaie plus tard.");
-        setPaymentBusyPlan(null);
-        return;
-      }
+      const result = await api<{ rows: AttendanceRow[] }>(`/api/data?action=attendance&date=${encodeURIComponent(date)}`);
+      const rows = result.rows ?? []; setAttendance(rows);
+      setAttendanceStatus(() => { const next: Record<string, AttendanceStatus> = {}; rows.forEach(row => { next[row.student_id] = row.status; }); return next; });
+    } catch (e) { setError("Impossible de charger les présences : " + (e as Error).message); }
+  }
+  async function submitAuth(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setError(""); setMessage("");
+    try {
+      const result = await api<{ user: AppUser }>(authMode === "signup" ? "/api/auth/signup" : "/api/auth/login", { method: "POST", body: JSON.stringify({ full_name: fullName.trim(), email: email.trim(), password }) });
+      setUser(result.user); setMessage(authMode === "signup" ? "Compte créé. Tu peux maintenant créer ton établissement." : "Connexion réussie."); setPassword("");
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  async function startSubscriptionPayment(planCode: SubscriptionPlan["code"]) {
+    if (!school) { setPaymentMessage("Connecte-toi et ouvre l’espace de ton établissement avant de payer."); return; }
+    setPaymentBusyPlan(planCode); setPaymentMessage(""); setError("");
+    try {
+      const result = await api<{ checkout_url: string }>("/api/saspay/start", { method: "POST", body: JSON.stringify({ school_id: school.id, plan_code: planCode }) });
+      if (typeof result.checkout_url !== "string") throw new Error("Lien de paiement invalide.");
       window.location.assign(result.checkout_url);
-    } catch {
-      setPaymentMessage("Connexion impossible. Vérifie ton réseau puis réessaie.");
-      setPaymentBusyPlan(null);
-    }
+    } catch (e) { setPaymentMessage((e as Error).message || "Impossible de démarrer le paiement SasPay."); setPaymentBusyPlan(null); }
   }
-
   async function createSchool(e: FormEvent) {
-    e.preventDefault(); if (!supabase) return;
-    setBusy(true); setError(""); setMessage("");
-    const { error } = await supabase.rpc("create_school_for_current_user", { school_name: schoolName.trim() });
-    if (error) setError(error.message);
-    else { setMessage("Établissement créé."); await loadSchool(); }
-    setBusy(false);
+    e.preventDefault(); setBusy(true); setError(""); setMessage("");
+    try { await api("/api/data", { method: "POST", body: JSON.stringify({ action: "createSchool", school_name: schoolName.trim() }) }); setMessage("Établissement créé."); await loadSchool(); }
+    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-
   async function addStudent(e: FormEvent) {
-    e.preventDefault(); if (!supabase || !school) return;
-    setBusy(true); setError(""); setMessage("");
-    const { error } = await supabase.from("students").insert({
-      school_id: school.id, student_number: studentForm.student_number.trim(), first_name: studentForm.first_name.trim(),
-      last_name: studentForm.last_name.trim(), gender: studentForm.gender || null,
-      class_id: studentForm.class_id || null, status: "active"
-    });
-    if (error) setError(error.message.includes("SUBSCRIPTION_LIMIT_REACHED") ? "La limite d’élèves de ton forfait est atteinte. Passe à un forfait supérieur après activation du paiement." : error.message.includes("SUBSCRIPTION_NOT_CONFIGURED") ? "L’abonnement de cette école n’est pas configuré. Exécute la migration supabase/subscription-plans.sql." : error.message);
-    else {
-      setMessage("Élève inscrit."); setShowAdd(false);
-      setStudentForm({ first_name: "", last_name: "", student_number: "", gender: "", class_id: "" });
-      await loadSchool();
-    }
-    setBusy(false);
+    e.preventDefault(); if (!school) return; setBusy(true); setError(""); setMessage("");
+    try {
+      await api("/api/data", { method: "POST", body: JSON.stringify({ action: "addStudent", student_number: studentForm.student_number.trim(), first_name: studentForm.first_name.trim(), last_name: studentForm.last_name.trim(), gender: studentForm.gender || null, class_id: studentForm.class_id || null }) });
+      setMessage("Élève inscrit."); setShowAdd(false); setStudentForm({ first_name: "", last_name: "", student_number: "", gender: "", class_id: "" }); await loadSchool();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-
   async function addClass(e: FormEvent) {
-    e.preventDefault(); if (!supabase || !school) return;
-    const form = e.currentTarget as HTMLFormElement;
-    const data = new FormData(form);
+    e.preventDefault(); if (!school) return; const form = e.currentTarget as HTMLFormElement; const data = new FormData(form);
     setBusy(true); setError(""); setMessage("");
-    const { error } = await supabase.from("classes").insert({
-      school_id: school.id, name: String(data.get("name") || "").trim(),
-      level: String(data.get("level") || "CI"), academic_year: school.academic_year
-    });
-    if (error) setError(error.message);
-    else { setMessage("Classe ajoutée."); form.reset(); await loadSchool(); }
-    setBusy(false);
+    try {
+      await api("/api/data", { method: "POST", body: JSON.stringify({ action: "addClass", name: String(data.get("name") || "").trim(), level: String(data.get("level") || "CI") }) });
+      setMessage("Classe ajoutée."); form.reset(); await loadSchool();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-
   async function saveAttendance(e: FormEvent) {
-    e.preventDefault(); if (!supabase || !school) return;
+    e.preventDefault(); if (!school) return;
     const classStudents = students.filter(s => s.status === "active" && s.class_id === attendanceClass);
     if (!attendanceClass || classStudents.length === 0) { setError("Sélectionne une classe qui contient des élèves."); return; }
     setBusy(true); setError(""); setMessage("");
-    const rows = classStudents.map(s => ({
-      school_id: school.id, student_id: s.id, attendance_date: attendanceDate,
-      status: attendanceStatus[s.id] ?? "present", recorded_by: user?.id ?? null
-    }));
-    const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "school_id,student_id,attendance_date" });
-    if (error) setError("Enregistrement des présences impossible : " + error.message);
-    else {
-      setMessage("Présences enregistrées pour " + classStudents.length + " élève(s).");
-      await loadAttendance(school.id, attendanceDate);
-    }
-    setBusy(false);
+    try {
+      await api("/api/data", { method: "POST", body: JSON.stringify({ action: "saveAttendance", rows: classStudents.map(s => ({ student_id: s.id, attendance_date: attendanceDate, status: attendanceStatus[s.id] ?? "present" })) }) });
+      setMessage("Présences enregistrées pour " + classStudents.length + " élève(s)."); await loadAttendance(school.id, attendanceDate);
+    } catch (e) { setError("Enregistrement des présences impossible : " + (e as Error).message); } finally { setBusy(false); }
   }
-
   async function addGrade(e: FormEvent) {
-    e.preventDefault(); if (!supabase || !school) return;
-    const score = Number(gradeForm.score);
-    const coefficient = Number(gradeForm.coefficient);
-    if (!gradeForm.student_id || !gradeForm.subject.trim() || !Number.isFinite(score) || score < 0 || score > 20 || !Number.isFinite(coefficient) || coefficient <= 0) {
-      setError("Vérifie l’élève, la matière, la note (0 à 20) et le coefficient."); return;
-    }
+    e.preventDefault(); if (!school) return;
+    const score = Number(gradeForm.score), coefficient = Number(gradeForm.coefficient);
+    if (!gradeForm.student_id || !gradeForm.subject.trim() || !Number.isFinite(score) || score < 0 || score > 20 || !Number.isFinite(coefficient) || coefficient <= 0) { setError("Vérifie l’élève, la matière, la note (0 à 20) et le coefficient."); return; }
     setBusy(true); setError(""); setMessage("");
-    const { error } = await supabase.from("grades").insert({
-      school_id: school.id, student_id: gradeForm.student_id, subject: gradeForm.subject.trim(),
-      term: gradeForm.term, score, coefficient, comment: gradeForm.comment.trim() || null, recorded_by: user?.id ?? null
-    });
-    if (error) setError("Enregistrement de la note impossible : " + error.message);
-    else {
-      setMessage("Note enregistrée.");
-      setGradeForm({ student_id: "", subject: "", term: "Trimestre 1", score: "10", coefficient: "1", comment: "" });
-      setBulletinRefresh(value => value + 1);
-      await loadSchool();
-    }
-    setBusy(false);
+    try {
+      await api("/api/data", { method: "POST", body: JSON.stringify({ action: "addGrade", student_id: gradeForm.student_id, subject: gradeForm.subject.trim(), term: gradeForm.term, score, coefficient, comment: gradeForm.comment.trim() || null }) });
+      setMessage("Note enregistrée."); setGradeForm({ student_id: "", subject: "", term: "Trimestre 1", score: "10", coefficient: "1", comment: "" }); setBulletinRefresh(value => value + 1); await loadSchool();
+    } catch (e) { setError("Enregistrement de la note impossible : " + (e as Error).message); } finally { setBusy(false); }
   }
-
   async function addPayment(e: FormEvent) {
-    e.preventDefault(); if (!supabase || !school) return;
-    const amount = Number(feeForm.amount_xof);
-    if (!feeForm.student_id || !Number.isSafeInteger(amount) || amount <= 0) {
-      setError("Sélectionne un élève et indique un montant positif en FCFA."); return;
-    }
+    e.preventDefault(); if (!school) return; const amount = Number(feeForm.amount_xof);
+    if (!feeForm.student_id || !Number.isSafeInteger(amount) || amount <= 0) { setError("Sélectionne un élève et indique un montant positif en FCFA."); return; }
     setBusy(true); setError(""); setMessage("");
-    const receipt = "ELS-" + localDate().replace(/-/g, "") + "-" + crypto.randomUUID().slice(0, 6).toUpperCase();
-    const { error } = await supabase.from("fee_payments").insert({
-      school_id: school.id, student_id: feeForm.student_id, receipt_number: receipt,
-      amount_xof: amount, payment_method: feeForm.payment_method, note: feeForm.note.trim() || null,
-      recorded_by: user?.id ?? null
-    });
-    if (error) setError("Enregistrement du paiement impossible : " + error.message);
-    else {
-      setMessage("Paiement enregistré. Référence du reçu : " + receipt);
-      setFeeForm({ student_id: "", amount_xof: "", payment_method: "cash", note: "" });
-      await loadSchool();
-    }
-    setBusy(false);
+    try {
+      const result = await api<{ receipt: string }>("/api/data", { method: "POST", body: JSON.stringify({ action: "addPayment", student_id: feeForm.student_id, amount_xof: amount, payment_method: feeForm.payment_method, note: feeForm.note.trim() || null }) });
+      setMessage("Paiement enregistré. Référence du reçu : " + result.receipt); setFeeForm({ student_id: "", amount_xof: "", payment_method: "cash", note: "" }); await loadSchool();
+    } catch (e) { setError("Enregistrement du paiement impossible : " + (e as Error).message); } finally { setBusy(false); }
+  }
+  async function signOut() {
+    try { await api("/api/auth/logout", { method: "POST", body: "{}" }); } finally { setUser(null); setSchool(null); setStudents([]); setClasses([]); setGrades([]); setPayments([]); }
   }
 
-  async function signOut() { if (supabase) await supabase.auth.signOut(); }
   const filtered = students.filter(s => (s.first_name + " " + s.last_name + " " + s.student_number).toLowerCase().includes(search.toLowerCase()));
   const selectedClassStudents = students.filter(s => s.status === "active" && s.class_id === attendanceClass);
   const totalRecentPayments = payments.reduce((sum, p) => sum + Number(p.amount_xof || 0), 0);
@@ -355,11 +233,10 @@ export default function App() {
   ];
 
   if (loading) return <div className="center-page">Chargement d’ELS SCHOOL MANAGER…</div>;
-  if (!supabase) return <div className="center-page"><section className="auth-card"><Brand/><h1>Configuration nécessaire</h1><p>Ajoute l’URL et la clé publique de ton projet Supabase dans le fichier <code>.env</code>, puis redémarre le serveur.</p><code>VITE_SUPABASE_URL<br/>VITE_SUPABASE_ANON_KEY</code></section></div>;
   if (!user) return <div className="center-page"><section className="auth-card"><Brand/><p className="eyebrow">GESTION SCOLAIRE SIMPLIFIÉE · BÉNIN</p><h1>{authMode === "login" ? "Heureux de te revoir" : "Créer le compte de direction"}</h1><p className="muted">{authMode === "login" ? "Connecte-toi pour accéder à ton établissement." : "Crée le compte qui administrera ton établissement."}</p><form onSubmit={submitAuth} className="form-stack">
     {authMode === "signup" && <label>Nom complet<input required value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Nom du directeur ou de la directrice"/></label>}
     <label>Adresse e-mail<input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="nom@ecole.com"/></label>
-    <label>Mot de passe<input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="8 caractères minimum"/></label>
+    <label>Mot de passe<input type="password" required minLength={10} value={password} onChange={e => setPassword(e.target.value)} placeholder="10 caractères minimum"/></label>
     <button className="primary full" disabled={busy}>{busy ? "Patiente…" : authMode === "login" ? "Se connecter" : "Créer mon compte"}</button></form>
     {error && <p className="error">{error}</p>}{message && <p className="success">{message}</p>}
     <p className="switch-auth">{authMode === "login" ? "Tu n’as pas encore de compte ?" : "Tu as déjà un compte ?"} <button onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setError(""); setMessage(""); }}>{authMode === "login" ? "Inscris-toi" : "Connecte-toi"}</button></p>
