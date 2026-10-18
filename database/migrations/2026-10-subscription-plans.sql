@@ -78,14 +78,14 @@ on conflict (school_id) do nothing;
 
 create or replace function create_default_school_subscription()
 returns trigger language plpgsql security definer set search_path = public
-as $
+as $$
 begin
   insert into school_subscriptions (school_id, plan_code, status, monthly_price_xof, student_limit)
   values (new.id, 'essentiel', 'trial', 5000, 100)
   on conflict (school_id) do nothing;
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists schools_create_default_subscription on schools;
 create trigger schools_create_default_subscription
@@ -94,7 +94,7 @@ for each row execute procedure create_default_school_subscription();
 
 create or replace function enforce_school_student_limit()
 returns trigger language plpgsql security definer set search_path = public
-as $
+as $$
 declare active_count integer; max_students integer; subscription_found boolean;
 begin
   perform pg_advisory_xact_lock(hashtextextended(new.school_id::text, 0));
@@ -115,7 +115,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists students_enforce_subscription_limit on students;
 create trigger students_enforce_subscription_limit
