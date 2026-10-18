@@ -1,7 +1,7 @@
 -- ELS SCHOOL MANAGER — schéma de départ PostgreSQL pour Neon.
 -- À exécuter UNE SEULE FOIS sur un projet Neon neuf.
 -- Ne pas exécuter sur la base d'une école en production sans sauvegarde.
--- Les mots de passe doivent être stockés sous forme de hash côté serveur (bcrypt/argon2),
+-- Les mots de passe doivent être stockés sous forme de hash côté serveur (scrypt),
 -- jamais en clair. Les requêtes doivent toujours vérifier l'appartenance à l'école.
 
 create extension if not exists pgcrypto;
