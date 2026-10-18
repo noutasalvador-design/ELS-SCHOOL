@@ -26,6 +26,9 @@ create index if not exists school_payment_transactions_school_created_idx
 create index if not exists school_payment_transactions_status_created_idx
   on public.school_payment_transactions(status, created_at desc);
 
+alter table public.school_payment_transactions
+  add column if not exists subscription_activated_at timestamptz;
+
 alter table public.school_payment_transactions enable row level security;
 -- Aucune politique navigateur : seules les fonctions serveur utilisant la service_role
 -- peuvent créer/mettre à jour les transactions. Ne jamais exposer cette clé au frontend.
