@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ ok: false });
   }
 
-  const secret = process.env.SASPAY_WEBHOOK_SECRET;
+  const secret = process.env.SASPAY_WEBHOOK_SECRET || process.env.SASPAY_CALLBACK_SECRET;
   const apiKey = process.env.SASPAY_API_KEY;
   if (!secret || !apiKey) return res.status(503).json({ ok: false });
 
