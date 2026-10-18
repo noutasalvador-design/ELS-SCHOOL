@@ -75,3 +75,12 @@
 .plan-current{display:inline-flex;align-items:center;gap:6px;width:max-content;border-radius:99px;background:#f6ead0;color:#77561e;padding:5px 9px;font-size:11px;font-weight:700}
 .subscription-note{font-size:12px;line-height:1.7;margin-top:20px}
 @media(max-width:850px){.subscription-current{grid-template-columns:1fr}.subscription-plans{grid-template-columns:1fr}}
+
+
+/* SasPay subscription checkout */
+.subscription-pay-button{width:100%;justify-content:center;margin-top:18px;display:flex;align-items:center;gap:9px}
+.subscription-pay-button:disabled{opacity:.65;cursor:wait}
+.subscription-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px;flex-wrap:wrap}
+.subscription-actions .subscription-note{margin:0;flex:1;min-width:240px}
+.subscription-actions .secondary{border:1px solid #d8e1ec;background:#fff;color:#1c3045;border-radius:10px;padding:10px 14px;font-weight:700}
+.subscription-actions .secondary:disabled{opacity:.6;cursor:wait}
