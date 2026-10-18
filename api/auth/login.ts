@@ -4,6 +4,7 @@ import { issueSession, methodNotAllowed, verifyPassword } from "../_lib/auth";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, "POST");
+  if (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 32) return res.status(503).json({ ok: false, message: "Le backend doit être configuré avec AUTH_SECRET dans Vercel." });
   const body = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
