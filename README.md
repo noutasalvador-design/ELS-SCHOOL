@@ -26,6 +26,7 @@ Le dépôt contient les premiers fichiers de préparation :
 - `api/saspay/callback.ts` : vérifie la signature du webhook, relit le statut chez SasPay et active le forfait côté serveur.
 - `api/_lib/saspay.ts` : catalogue des tarifs et helpers serveur.
 - `docs/NEON-VERCEL.md` : procédure de configuration et état de migration.
+- `docs/SASPAY-SETUP.md` : configuration du checkout, du webhook et des variables privées.
 
 **Important : la migration n'est pas terminée.** L'interface dans `src/App.tsx` utilise encore Supabase Auth et les requêtes Supabase. Ne supprime pas Supabase et ne saisis pas de vraies données d'élèves tant que l'authentification et tous les modules n'ont pas été migrés et testés. Le nouvel endpoint `/api/health` teste uniquement la connexion de la base ; il ne prouve pas que l'application scolaire est déjà opérationnelle avec Neon.
 
@@ -61,7 +62,7 @@ Les forfaits sont définis dans le catalogue PostgreSQL `subscription_plans` et 
 | Standard | 10 000 FCFA | Jusqu'à 300 |
 | Illimité | 25 000 FCFA | Aucun plafond |
 
-La table d'abonnement conserve le forfait, le statut, la période de facturation et les identifiants éventuels du prestataire. La migration SQL est préparée, mais l'interface de facturation, l'encaissement automatique et le contrôle serveur empêchant de dépasser la limite doivent encore être intégrés avant utilisation réelle. Ne considère pas un abonnement comme payé à partir d'une simple redirection du navigateur.
+La table d'abonnement conserve le forfait, le statut, la période de facturation et les identifiants du prestataire. Les fonctions SasPay et les boutons de paiement sont maintenant présents dans le dépôt, mais ils ne sont pas encore validés en production : les variables Vercel, le webhook marchand et les migrations SQL doivent être configurés puis testés. Ne considère pas un abonnement comme payé à partir d'une simple redirection du navigateur.
 
 ## Sécurité et tests
 
