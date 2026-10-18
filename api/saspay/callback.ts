@@ -53,7 +53,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const data = event.data && typeof event.data === "object" ? event.data : {};
   const nested = data.checkout_session && typeof data.checkout_session === "object" ? data.checkout_session : data;
   const sessionId = nested.checkout_session_id ?? nested.session_id ?? nested.checkoutSessionId ??
-    nested.checkout_session?.id ?? (typeof nested.id === "string" ? nested.id : undefined);
+    nested.checkout_session?.id ??
+    (typeof nested.id === "string" && /^(cs_|sess_|checkout_)/i.test(nested.id) ? nested.id : undefined);
   const localReference = nested.metadata?.local_reference ?? nested.metadata?.localReference ??
     data.metadata?.local_reference ?? data.metadata?.localReference ?? nested.local_reference ??
     nested.localReference ?? nested.reference ?? data.reference;
