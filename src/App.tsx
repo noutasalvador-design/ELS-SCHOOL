@@ -46,6 +46,9 @@ export default function App() {
   const [schoolSubscription, setSchoolSubscription] = useState<SubscriptionRow | null>(null);
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(DEFAULT_SUBSCRIPTION_PLANS);
   const [subscriptionError, setSubscriptionError] = useState("");
+  const [paymentBusyPlan, setPaymentBusyPlan] = useState<string | null>(null);
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const [subscriptionRefresh, setSubscriptionRefresh] = useState(0);
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
@@ -115,7 +118,15 @@ export default function App() {
     }
     void loadSubscription();
     return () => { active = false; };
-  }, [school?.id]);
+  }, [school?.id, subscriptionRefresh]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("paiement") === "retour") {
+      setPaymentMessage("Retour depuis SasPay reçu. La confirmation est vérifiée côté serveur ; actualise le statut dans quelques instants si le forfait n’a pas encore changé.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -184,6 +195,44 @@ export default function App() {
     else if (authMode === "signup" && !result.data.session) setMessage("Compte créé. Vérifie ton e-mail si la confirmation est activée, puis connecte-toi.");
     else setMessage(authMode === "signup" ? "Compte créé. Tu peux maintenant créer ton établissement." : "Connexion réussie.");
     setBusy(false);
+  }
+
+  async function startSubscriptionPayment(planCode: SubscriptionPlan["code"]) {
+    if (!supabase || !school) {
+      setPaymentMessage("Connecte-toi et ouvre l’espace de ton établissement avant de payer.");
+      return;
+    }
+    setPaymentBusyPlan(planCode);
+    setPaymentMessage("");
+    setError("");
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (sessionError || !token) {
+        setPaymentMessage("Ta session a expiré. Reconnecte-toi puis réessaie.");
+        setPaymentBusyPlan(null);
+        return;
+      }
+      const response = await fetch("/api/saspay/start", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ school_id: school.id, plan_code: planCode }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok || typeof result.checkout_url !== "string") {
+        setPaymentMessage(result.message || "Impossible de démarrer le paiement SasPay. Réessaie plus tard.");
+        setPaymentBusyPlan(null);
+        return;
+      }
+      window.location.assign(result.checkout_url);
+    } catch {
+      setPaymentMessage("Connexion impossible. Vérifie ton réseau puis réessaie.");
+      setPaymentBusyPlan(null);
+    }
   }
 
   async function createSchool(e: FormEvent) {
@@ -333,6 +382,7 @@ export default function App() {
       {page === "Abonnement" && <section className="panel">
         <div className="panel-head"><div><h2>Abonnement de l’établissement</h2><p>Consulte les forfaits mensuels disponibles pour ton établissement.</p></div><div className="fee-total"><small>Élèves actuellement inscrits</small><strong>{students.filter(s => s.status === "active").length}</strong></div></div>
         {subscriptionError && <div className="alert error">{subscriptionError}</div>}
+        {paymentMessage && <div className={paymentMessage.startsWith("Retour depuis") ? "alert" : "alert error"} role="status">{paymentMessage}</div>}
         {!subscriptionError && schoolSubscription && <div className="subscription-current">
           <div><span className="eyebrow">FORFAIT ACTUEL</span><h2>{schoolSubscription.plan_code === "essentiel" ? "Essentiel" : schoolSubscription.plan_code === "standard" ? "Standard" : "Illimité"}</h2><p className="muted">{schoolSubscription.status === "trial" ? "Période d’essai / configuration" : schoolSubscription.status === "active" ? "Abonnement actif" : schoolSubscription.status === "past_due" ? "Paiement en retard" : schoolSubscription.status === "cancelled" ? "Abonnement résilié" : schoolSubscription.status === "suspended" ? "Abonnement suspendu" : schoolSubscription.status}</p></div>
           <div className="fee-total"><small>Tarif mensuel</small><strong>{money(schoolSubscription.monthly_price_xof)}</strong></div>
@@ -345,9 +395,12 @@ export default function App() {
             <h3>{plan.name}</h3><p className="plan-price">{money(plan.monthly_price_xof)}<span> / mois</span></p>
             <p>{plan.student_limit === null ? "Nombre illimité d’élèves" : "Jusqu’à " + plan.student_limit + " élèves"}</p>
             <ul><li>Gestion des inscriptions</li><li>Classes, présences et notes</li><li>Paiements scolaires et reçus</li></ul>
+            <button type="button" className="primary subscription-pay-button" disabled={paymentBusyPlan !== null} onClick={() => void startSubscriptionPayment(plan.code)}>
+              <CreditCard size={16}/>{paymentBusyPlan === plan.code ? "Préparation du paiement…" : isCurrent && schoolSubscription?.status === "active" ? "Renouveler avec SasPay" : "Payer avec SasPay"}
+            </button>
           </article>;
         })}</div>
-        <p className="muted subscription-note">Les plafonds sont vérifiés par la base de données après installation de la migration SQL. Le changement de forfait et les paiements en ligne ne sont pas encore activés : aucun paiement n’est prélevé depuis cet écran.</p>
+        <div className="subscription-actions"><p className="muted subscription-note">Le forfait ne devient actif qu’après vérification du paiement par le serveur SasPay. Si tu viens de payer, utilise le bouton ci-dessous pour recharger le statut.</p><button type="button" className="secondary" disabled={paymentBusyPlan !== null} onClick={() => setSubscriptionRefresh(value => value + 1)}>Actualiser le statut</button></div>
       </section>}
       <footer>© {new Date().getFullYear()} ELS SCHOOL MANAGER <span>Gestion scolaire primaire · Bénin</span></footer>
     </div></main></div>;
