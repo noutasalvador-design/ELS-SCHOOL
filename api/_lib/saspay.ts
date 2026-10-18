@@ -47,11 +47,3 @@ export function publicOrigin(req: VercelRequest): string {
   throw new Error("Public site URL is not configured");
 }
 
-export function safeEqualHex(actualHex: string, expectedHex: string): boolean {
-  if (!/^[a-f0-9]{64}$/i.test(actualHex) || !/^[a-f0-9]{64}$/i.test(expectedHex)) return false;
-  const actual = Buffer.from(actualHex, "hex");
-  const expected = Buffer.from(expectedHex, "hex");
-  // Fixed-size signatures only; timingSafeEqual throws if lengths differ.
-  const { timingSafeEqual } = require("node:crypto") as typeof import("node:crypto");
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
