@@ -76,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const school = await schoolFor(user.id);
     if (!school) return bad(res, "Crée d’abord l’établissement.", 404);
-    const trialCheck = await db.query("select status,current_period_end from school_subscriptions where school_id=$1", [school.id]);
+    const trialCheck = await db.query("select status,coalesce(current_period_end,created_at + interval '14 days') as current_period_end from school_subscriptions where school_id=$1", [school.id]);
     const currentSubscription = trialCheck.rows[0];
     if (currentSubscription?.status === "trial" && currentSubscription.current_period_end && new Date(currentSubscription.current_period_end).getTime() <= Date.now()) return bad(res, "Votre essai gratuit de 14 jours est terminé. Choisissez un abonnement dans la rubrique Abonnement pour continuer.", 402);
     if (school.role !== "school_director" && !["teacher","accountant","secretary"].includes(school.role)) return bad(res,"Accès refusé.",403);
