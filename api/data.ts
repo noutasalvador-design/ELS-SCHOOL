@@ -130,7 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const amount = Number(body.amount_xof);
       const classId = typeof body.class_id === "string" ? body.class_id : "";
       const studentId = typeof body.student_id === "string" ? body.student_id : "";
-      const dueDate = typeof body.due_date === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(body.due_date) ? body.due_date : null;
+      const dueDate = typeof body.due_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.due_date) ? body.due_date : null;
       if (title.length < 2 || title.length > 120 || !Number.isSafeInteger(amount) || amount <= 0 || Boolean(classId) === Boolean(studentId)) return bad(res, "Indique un intitulé, un montant positif et une classe ou un élève.");
       if (classId) {
         const owned = await db.query("select id from classes where id=$1 and school_id=$2", [classId, school.id]);
@@ -148,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (school.role !== "school_director") return bad(res, "Seule la direction peut gérer les accès.", 403);
       const email = String(body.email || "").trim().toLowerCase();
       const role = String(body.role || "");
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !["teacher","accountant","secretary"].includes(role)) return bad(res, "Adresse e-mail ou rôle invalide.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !["teacher","accountant","secretary"].includes(role)) return bad(res, "Adresse e-mail ou rôle invalide.");
       const account = await db.query("select id from app_users where email=$1", [email]);
       if (!account.rowCount) return bad(res, "Ce compte n’existe pas encore. Demande à cette personne de créer son compte ELS SCHOOL, puis ajoute-la ici.", 404);
       if (account.rows[0].id === user.id) return bad(res, "Tu es déjà la direction de cet établissement.");
