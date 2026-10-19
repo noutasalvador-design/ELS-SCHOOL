@@ -260,3 +260,15 @@
   .app-layout .sidebar-foot { padding-top: 10px; }
   .app-layout .user-line { padding-bottom: 8px; }
 }
+
+
+/* Modules ajoutés : frais, soldes, dossiers élèves et permissions. */
+.balance-due{color:#b45309}.balance-clear{color:#16845b}.danger-link{color:#b45353!important}
+.student-form .secondary{align-self:end;min-height:37px}
+.fee-assignment-panel,.access-panel{margin-top:18px}
+.fee-assignment-panel .panel-head,.access-panel .panel-head{margin-bottom:8px}
+.fee-assignment-panel td .muted,.access-panel td .muted{margin-top:4px;font-size:10px}
+.access-panel select{border:1px solid #dfe6ee;border-radius:7px;padding:7px 9px;background:#fff;color:#344a60;font-size:11px;max-width:180px}
+.access-panel .module-form,.fee-assignment-panel .module-form{align-items:end}
+.access-panel .module-form label,.fee-assignment-panel .module-form label{min-width:0}
+@media(max-width:700px){.student-form,.module-form.grade-form{grid-template-columns:minmax(0,1fr)}.fee-assignment-panel,.access-panel{padding:15px}.access-panel .panel-head,.fee-assignment-panel .panel-head{align-items:flex-start}.fee-assignment-panel table,.access-panel table{min-width:620px}}
