@@ -11,9 +11,11 @@
 ## 1. Initialiser Neon
 
 1. Crée un projet sur https://neon.tech/.
-2. Dans Neon SQL Editor, exécute `database/neon-schema.sql` sur une base neuve.
-3. Exécute ensuite `database/migrations/2026-10-neon-payments.sql`.
-4. Si tu avais déjà des utilisateurs ou données dans Supabase, ils ne sont pas copiés automatiquement. Il faut les exporter, les transformer pour le schéma Neon, puis les importer avant de fermer Supabase.
+2. Dans la console Neon, copie la chaîne de connexion en activant le pooler pour l'application Vercel.
+3. Garde la chaîne directe uniquement pour les opérations d'administration ou de migration qui l'exigent.
+4. Dans Neon SQL Editor, exécute `database/neon-schema.sql` sur une base neuve.
+5. Exécute ensuite `database/migrations/2026-10-neon-payments.sql`.
+6. Si tu avais déjà des utilisateurs ou données dans Supabase, ils ne sont pas copiés automatiquement. Il faut les exporter, les transformer pour le schéma Neon, puis les importer avant de fermer Supabase.
 
 Ne relance pas le schéma complet sur une base existante sans examiner son contenu.
 
@@ -21,13 +23,13 @@ Ne relance pas le schéma complet sur une base existante sans examiner son conte
 
 Dans Vercel → Project → Settings → Environment Variables, ajoute ces variables pour l’environnement choisi :
 
-- `DATABASE_URL` : chaîne PostgreSQL fournie par Neon, avec SSL.
+- `DATABASE_URL` : chaîne PostgreSQL fournie par Neon, avec SSL et idéalement le point de terminaison pooler (`-pooler`) pour les fonctions Vercel.
 - `AUTH_SECRET` : secret aléatoire unique d’au moins 32 caractères. Garde-le privé.
 - `NEXT_PUBLIC_SITE_URL` : URL canonique du site, par exemple `https://ton-projet.vercel.app`.
 - `SASPAY_API_KEY` : clé API privée SasPay.
 - `SASPAY_WEBHOOK_SECRET` : secret de signature du webhook SasPay.
 
-Ne mets aucune de ces valeurs dans une variable `VITE_*), dans le dépôt GitHub ou dans un message. Après configuration, relance un déploiement.
+Ne mets aucune de ces valeurs dans une variable préfixée par `VITE_`, dans le dépôt GitHub ou dans un message. Après configuration, relance un déploiement.
 
 ## 3. Webhook SasPay
 
