@@ -157,7 +157,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === "updateStudent") {
       if (!["school_director","secretary"].includes(school.role)) return bad(res, "Ton rôle ne permet pas de modifier les élèves.", 403);
       const id = String(body.id || "");
-      const studentNumber = String(body.student_number || "").trim();
+      const suppliedNumber = String(body.student_number || "").trim();
+      const studentNumber = suppliedNumber || ("ELS-" + new Date().getFullYear() + "-" + randomUUID().slice(0,6).toUpperCase());
       const firstName = String(body.first_name || "").trim();
       const lastName = String(body.last_name || "").trim();
       const gender = body.gender === "F" || body.gender === "M" ? body.gender : null;
@@ -185,7 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const lastName = String(body.last_name || "").trim();
       const gender = body.gender === "F" || body.gender === "M" ? body.gender : null;
       const classId = typeof body.class_id === "string" && body.class_id ? body.class_id : null;
-      if (!studentNumber || !firstName || !lastName) return bad(res,"Matricule, prénom et nom sont obligatoires.");
+      if (!firstName || !lastName) return bad(res,"Le prénom et le nom sont obligatoires.");
       if (classId) {
         const classCheck = await db.query("select id from classes where id=$1 and school_id=$2",[classId,school.id]);
         if (!classCheck.rowCount) return bad(res,"La classe sélectionnée n’appartient pas à cet établissement.",403);
