@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "./_lib/db";
+import { db } from "./_lib/db.js";
 
 const fallbackPlans = [
   { code: "essentiel", name: "Essentiel", monthlyPriceXof: 5000, studentLimit: 100, unlimited: false },
