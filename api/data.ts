@@ -78,6 +78,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!school) return bad(res, "Crée d’abord l’établissement.", 404);
     if (school.role !== "school_director" && !["teacher","accountant","secretary"].includes(school.role)) return bad(res,"Accès refusé.",403);
 
+    if (action === "updateAcademicYear") {
+      if (school.role !== "school_director") return bad(res, "Seule la direction peut modifier l’année scolaire.", 403);
+      const academicYear = String(body.academic_year || "").trim();
+      if (!/^\d{4}-\d{4}$/.test(academicYear)) return bad(res, "Format invalide. Utilise par exemple 2026-2027.");
+      const [start, end] = academicYear.split("-").map(Number);
+      if (end !== start + 1) return bad(res, "L’année de fin doit suivre l’année de début.");
+      const updated = await db.query("update schools set academic_year=$1 where id=$2 returning id,name,academic_year", [academicYear, school.id]);
+      await db.query("update classes set academic_year=$1 where school_id=$2", [academicYear, school.id]);
+      return res.status(200).json({ ok: true, school: updated.rows[0] });
+    }
     if (action === "addStudent") {
       if (!["school_director","secretary"].includes(school.role)) return bad(res,"Ton rôle ne permet pas d’inscrire des élèves.",403);
       const studentNumber = String(body.student_number || "").trim();
