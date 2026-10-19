@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "./db";
+import { db } from "./db.js";
 
 const COOKIE = "els_school_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 7;
