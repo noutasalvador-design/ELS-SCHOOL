@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { currentUser } from "../_lib/auth";
-import { db } from "../_lib/db";
-import { methodNotAllowed, PLAN_CATALOG, publicOrigin, SASPAY_API_BASE, type PlanCode } from "../_lib/saspay";
+import { currentUser } from "../_lib/auth.js";
+import { db } from "../_lib/db.js";
+import { methodNotAllowed, PLAN_CATALOG, publicOrigin, SASPAY_API_BASE, type PlanCode } from "../_lib/saspay.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, "POST");
