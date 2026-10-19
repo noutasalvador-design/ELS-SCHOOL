@@ -154,6 +154,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!result.rowCount) return bad(res, "Membre introuvable ou rôle non modifiable.", 404);
       return res.status(200).json({ok:true});
     }
+    if (action === "updateStudent") {
+      if (!["school_director","secretary"].includes(school.role)) return bad(res, "Ton rôle ne permet pas de modifier les élèves.", 403);
+      const id = String(body.id || "");
+      const studentNumber = String(body.student_number || "").trim();
+      const firstName = String(body.first_name || "").trim();
+      const lastName = String(body.last_name || "").trim();
+      const gender = body.gender === "F" || body.gender === "M" ? body.gender : null;
+      const classId = typeof body.class_id === "string" && body.class_id ? body.class_id : null;
+      if (!id || !studentNumber || !firstName || !lastName) return bad(res, "Matricule, prénom et nom sont obligatoires.");
+      if (classId) {
+        const classCheck = await db.query("select id from classes where id=$1 and school_id=$2", [classId, school.id]);
+        if (!classCheck.rowCount) return bad(res, "La classe sélectionnée n’appartient pas à cet établissement.", 403);
+      }
+      const updated = await db.query("update students set student_number=$1,first_name=$2,last_name=$3,gender=$4,class_id=$5 where id=$6 and school_id=$7 returning id", [studentNumber,firstName,lastName,gender,classId,id,school.id]);
+      if (!updated.rowCount) return bad(res, "Élève introuvable dans cet établissement.", 404);
+      return res.status(200).json({ok:true});
+    }
+    if (action === "archiveStudent") {
+      if (!["school_director","secretary"].includes(school.role)) return bad(res, "Ton rôle ne permet pas d’archiver les élèves.", 403);
+      const id = String(body.id || "");
+      const updated = await db.query("update students set status='inactive' where id=$1 and school_id=$2 and status='active' returning id", [id,school.id]);
+      if (!updated.rowCount) return bad(res, "Élève introuvable ou déjà archivé.", 404);
+      return res.status(200).json({ok:true});
+    }
     if (action === "addStudent") {
       if (!["school_director","secretary"].includes(school.role)) return bad(res,"Ton rôle ne permet pas d’inscrire des élèves.",403);
       const studentNumber = String(body.student_number || "").trim();
