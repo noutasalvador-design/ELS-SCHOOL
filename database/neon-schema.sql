@@ -209,8 +209,6 @@ create index if not exists grades_school_student_idx on grades(school_id,student
 create index if not exists fee_payments_school_date_idx on fee_payments(school_id,paid_at desc);
 create index if not exists memberships_user_active_idx on school_memberships(user_id,active);
 
--- IMPORTANT:
--- Cette migration prépare le modèle de données Neon mais ne rend pas encore l'interface
--- React compatible avec Neon. L'API serveur doit authentifier chaque requête et contrôler
--- le membership school_id avant toute lecture/écriture. Ne pas y mettre de vraies données
--- d'élèves avant l'implémentation et les tests d'autorisation.
+-- Sécurité applicative :
+-- l'API Vercel authentifie les requêtes et contrôle l'appartenance à l'établissement.
+-- Tester l'isolation entre plusieurs écoles avant d'importer de vraies données d'élèves.
