@@ -272,3 +272,8 @@
 .access-panel .module-form,.fee-assignment-panel .module-form{align-items:end}
 .access-panel .module-form label,.fee-assignment-panel .module-form label{min-width:0}
 @media(max-width:700px){.student-form,.module-form.grade-form{grid-template-columns:minmax(0,1fr)}.fee-assignment-panel,.access-panel{padding:15px}.access-panel .panel-head,.fee-assignment-panel .panel-head{align-items:flex-start}.fee-assignment-panel table,.access-panel table{min-width:620px}}
+
+
+@media(min-width:1001px){.stats:not(.secondary-stats){grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:1000px){.stats:not(.secondary-stats){grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.stats:not(.secondary-stats){grid-template-columns:minmax(0,1fr)}}
