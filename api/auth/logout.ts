@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { clearSession, methodNotAllowed } from "../_lib/auth";
+import { clearSession, methodNotAllowed } from "../_lib/auth.js";
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, "POST");
   clearSession(res);
