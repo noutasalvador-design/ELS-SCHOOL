@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "../_lib/db";
-import { PLAN_CATALOG, SASPAY_API_BASE } from "../_lib/saspay";
+import { db } from "../_lib/db.js";
+import { PLAN_CATALOG, SASPAY_API_BASE } from "../_lib/saspay.js";
 
 export const config = { api: { bodyParser: false } };
 async function rawBody(req: VercelRequest): Promise<string> {
