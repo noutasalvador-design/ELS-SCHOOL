@@ -35,15 +35,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const school = await schoolFor(user.id);
       if (action === "overview") {
         if (!school) return res.status(200).json({ ok: true, school: null, students: [], classes: [], grades: [], payments: [], subscription: null, plans: planDefaults });
-        const [students, classes, grades, payments, subscription, plans] = await Promise.all([
+        const [students, classes, grades, payments, subscription, plans, feeCharges, feeSummary, staff] = await Promise.all([
           db.query("select id,student_number,first_name,last_name,gender,class_id,status from students where school_id=$1 order by last_name,first_name", [school.id]),
           db.query("select id,name,level,academic_year from classes where school_id=$1 order by level", [school.id]),
           db.query("select id,student_id,subject,term,score,coefficient,comment,created_at from grades where school_id=$1 order by created_at desc limit 100", [school.id]),
           db.query("select id,student_id,receipt_number,amount_xof,payment_method,paid_at,note from fee_payments where school_id=$1 order by paid_at desc limit 100", [school.id]),
           db.query("select plan_code,status,monthly_price_xof,student_limit,current_period_end from school_subscriptions where school_id=$1", [school.id]),
-          db.query("select code,name,monthly_price_xof,student_limit from subscription_plans where active=true order by monthly_price_xof")
+          db.query("select code,name,monthly_price_xof,student_limit from subscription_plans where active=true order by monthly_price_xof"),
+          db.query("select f.id,f.title,f.amount_xof,f.class_id,f.student_id,f.academic_year,f.due_date,c.name as class_name,st.first_name,st.last_name from school_fee_assignments f left join classes c on c.id=f.class_id left join students st on st.id=f.student_id where f.school_id=$1 and f.academic_year=$2 order by f.created_at desc", [school.id, school.academic_year]),
+          db.query("select st.id as student_id,st.student_number,st.first_name,st.last_name,coalesce((select sum(f.amount_xof) from school_fee_assignments f where f.school_id=st.school_id and f.academic_year=$2 and (f.student_id=st.id or f.class_id=st.class_id)),0)::bigint as expected_xof,coalesce((select sum(p.amount_xof) from fee_payments p where p.school_id=st.school_id and p.student_id=st.id),0)::bigint as paid_xof from students st where st.school_id=$1 and st.status='active' order by st.last_name,st.first_name", [school.id, school.academic_year]),
+          db.query("select m.id,m.user_id,u.full_name,u.email,m.role,m.active from school_memberships m join app_users u on u.id=m.user_id where m.school_id=$1 order by m.created_at", [school.id])
         ]);
-        return res.status(200).json({ ok: true, school: { id: school.id, name: school.name, academic_year: school.academic_year, logo_data_url: school.logo_data_url ?? null }, students: students.rows, classes: classes.rows, grades: grades.rows, payments: payments.rows, subscription: subscription.rows[0] ?? null, plans: plans.rows.length ? plans.rows : planDefaults });
+        return res.status(200).json({ ok: true, school: { id: school.id, name: school.name, academic_year: school.academic_year, logo_data_url: school.logo_data_url ?? null }, students: students.rows, classes: classes.rows, grades: grades.rows, payments: payments.rows, subscription: subscription.rows[0] ?? null, plans: plans.rows.length ? plans.rows : planDefaults, feeCharges: feeCharges.rows, feeSummary: feeSummary.rows, staff: staff.rows });
       }
       if (!school) return bad(res, "Crée d’abord l’établissement.", 404);
       if (action === "attendance") {
@@ -103,6 +106,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updated = await db.query("update schools set academic_year=$1 where id=$2 returning id,name,academic_year", [academicYear, school.id]);
       await db.query("update classes set academic_year=$1 where school_id=$2", [academicYear, school.id]);
       return res.status(200).json({ ok: true, school: updated.rows[0] });
+    }
+    if (action === "addFeeAssignment") {
+      if (school.role !== "school_director" && school.role !== "accountant") return bad(res, "Seule la direction ou la comptabilité peut définir les frais.", 403);
+      const title = String(body.title || "").trim();
+      const amount = Number(body.amount_xof);
+      const classId = typeof body.class_id === "string" ? body.class_id : "";
+      const studentId = typeof body.student_id === "string" ? body.student_id : "";
+      const dueDate = typeof body.due_date === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(body.due_date) ? body.due_date : null;
+      if (title.length < 2 || title.length > 120 || !Number.isSafeInteger(amount) || amount <= 0 || Boolean(classId) === Boolean(studentId)) return bad(res, "Indique un intitulé, un montant positif et une classe ou un élève.");
+      if (classId) {
+        const owned = await db.query("select id from classes where id=$1 and school_id=$2", [classId, school.id]);
+        if (!owned.rowCount) return bad(res, "Cette classe n’appartient pas à cet établissement.", 403);
+      }
+      if (studentId) {
+        const owned = await db.query("select id from students where id=$1 and school_id=$2 and status='active'", [studentId, school.id]);
+        if (!owned.rowCount) return bad(res, "Cet élève n’appartient pas à cet établissement.", 403);
+      }
+      await db.query("insert into school_fee_assignments(school_id,title,amount_xof,class_id,student_id,academic_year,due_date,created_by) values($1,$2,$3,$4,$5,$6,$7,$8)",
+        [school.id,title,amount,classId || null,studentId || null,school.academic_year,dueDate,user.id]);
+      return res.status(201).json({ok:true});
+    }
+    if (action === "addMember") {
+      if (school.role !== "school_director") return bad(res, "Seule la direction peut gérer les accès.", 403);
+      const email = String(body.email || "").trim().toLowerCase();
+      const role = String(body.role || "");
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !["teacher","accountant","secretary"].includes(role)) return bad(res, "Adresse e-mail ou rôle invalide.");
+      const account = await db.query("select id from app_users where email=$1", [email]);
+      if (!account.rowCount) return bad(res, "Ce compte n’existe pas encore. Demande à cette personne de créer son compte ELS SCHOOL, puis ajoute-la ici.", 404);
+      if (account.rows[0].id === user.id) return bad(res, "Tu es déjà la direction de cet établissement.");
+      await db.query("insert into school_memberships(school_id,user_id,role,active) values($1,$2,$3,true) on conflict(school_id,user_id) do update set role=excluded.role,active=true", [school.id,account.rows[0].id,role]);
+      return res.status(201).json({ok:true});
+    }
+    if (action === "updateMember") {
+      if (school.role !== "school_director") return bad(res, "Seule la direction peut gérer les accès.", 403);
+      const membershipId = String(body.membership_id || "");
+      const role = String(body.role || "");
+      if (!membershipId || !["teacher","accountant","secretary"].includes(role)) return bad(res, "Membre ou rôle invalide.");
+      const result = await db.query("update school_memberships set role=$1 where id=$2 and school_id=$3 and role <> 'school_director' returning id", [role,membershipId,school.id]);
+      if (!result.rowCount) return bad(res, "Membre introuvable ou rôle non modifiable.", 404);
+      return res.status(200).json({ok:true});
+    }
+    if (action === "removeMember") {
+      if (school.role !== "school_director") return bad(res, "Seule la direction peut gérer les accès.", 403);
+      const membershipId = String(body.membership_id || "");
+      const result = await db.query("update school_memberships set active=false where id=$1 and school_id=$2 and role <> 'school_director' returning id", [membershipId,school.id]);
+      if (!result.rowCount) return bad(res, "Membre introuvable ou rôle non modifiable.", 404);
+      return res.status(200).json({ok:true});
     }
     if (action === "addStudent") {
       if (!["school_director","secretary"].includes(school.role)) return bad(res,"Ton rôle ne permet pas d’inscrire des élèves.",403);
