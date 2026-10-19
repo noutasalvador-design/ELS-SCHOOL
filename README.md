@@ -45,7 +45,7 @@ Sous macOS/Linux, utilise `cp .env.example .env`. Remplis `.env` avec les vraies
 1. Crée un projet Neon sur https://neon.tech/.
 2. Dans Neon SQL Editor, exécute `database/neon-schema.sql` sur une base neuve.
 3. Exécute ensuite `database/migrations/2026-10-neon-payments.sql`.
-4. Dans Vercel → Project Settings → Environment Variables, ajoute `DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL`, `SASPAY_API_KEY` et `SASPAY_WEBHOOK_SECRET`. Ne colle jamais ces secrets dans une conversation ou dans GitHub.
+4. Dans Vercel → Project Settings → Environment Variables, ajoute `DATABASE_URL` (connexion pooler recommandée), `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL`, `SASPAY_API_KEY` et `SASPAY_WEBHOOK_SECRET`. Ne colle jamais ces secrets dans une conversation ou dans GitHub.
 5. Configure dans le tableau de bord SasPay le webhook `https://TON-DOMAINE/api/saspay/callback`.
 6. Redéploie, puis teste `/api/health`. Le résultat attendu est `{"ok":true,"service":"els-school-manager","database":"connected"}`.
 
