@@ -79,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (school.role !== "school_director" && !["teacher","accountant","secretary"].includes(school.role)) return bad(res,"Accès refusé.",403);
 
     if (action === "addStudent") {
-      if (!["school_director","secretary"].includes(school.role)) return bad(res,"Tu rôle ne permet pas d’inscrire des élèves.",403);
+      if (!["school_director","secretary"].includes(school.role)) return bad(res,"Ton rôle ne permet pas d’inscrire des élèves.",403);
       const studentNumber = String(body.student_number || "").trim();
       const firstName = String(body.first_name || "").trim();
       const lastName = String(body.last_name || "").trim();
