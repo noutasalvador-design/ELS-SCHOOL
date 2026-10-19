@@ -26,7 +26,7 @@ SaaS simple de gestion scolaire pour les écoles primaires au Bénin, sans porta
 - `api/saspay/start.ts` et `api/saspay/callback.ts` utilisent Neon pour le registre des paiements et l’activation des forfaits.
 - `database/neon-schema.sql` définit le schéma PostgreSQL.
 - `database/migrations/2026-10-neon-payments.sql` ajoute le registre des paiements SasPay.
-- `database/migrations/2026-10-school-fees.sql` documente la table des frais scolaires; l’API crée aussi cette table et ses index automatiquement au premier accès.
+- `database/migrations/2026-10-school-fees.sql` crée la table et les index des frais scolaires. Exécute ce script dans Neon SQL Editor avant d’utiliser le module de frais.
 - `docs/NEON-VERCEL.md` contient les étapes de configuration.
 
 Les anciens scripts dans `supabase/` sont conservés comme références pour l’ancienne version, mais l’application migrée n’en dépend plus. Les comptes et données qui se trouvaient déjà dans Supabase ne sont **pas copiés automatiquement** vers Neon. Si tu as des données à conserver, exporte-les et importe-les dans Neon avant de fermer l’ancien projet.
@@ -64,6 +64,6 @@ Le schéma initial doit être exécuté une seule fois sur une base neuve. Ne l�
 
 ## État et validation
 
-Le code de l’application a été migré vers des routes Neon côté serveur, mais cela ne signifie pas que le déploiement ou les paiements ont déjà été testés. Avant une utilisation réelle, il faut configurer les variables, vérifier le schéma Neon, valider l’inscription, la connexion, les soldes de scolarité, les rôles et l’isolation entre deux écoles de test, les limites d’élèves et le webhook SasPay. Utilise uniquement des données fictives jusqu’à ces vérifications.
+Le code de l’application a été migré vers des routes Neon côté serveur, mais cela ne signifie pas que le déploiement ou les paiements ont déjà été testés. Avant une utilisation réelle, il faut configurer les variables, exécuter les migrations Neon requises, valider l’inscription, la connexion, les soldes de scolarité, les rôles et l’isolation entre deux écoles de test, les limites d’élèves et le webhook SasPay. Utilise uniquement des données fictives jusqu’à ces vérifications.
 
 L’intégration SasPay reprend le format d’événements actuellement attendu par le code du projet; confirme le nom des événements, la signature et l’endpoint de statut avec la documentation de ton compte marchand avant une mise en production.
