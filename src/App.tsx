@@ -88,6 +88,11 @@ export default function App() {
 
   useEffect(() => { try { localStorage.setItem("els-school-accent", accentColor); } catch { /* stockage facultatif */ } }, [accentColor]);
   useEffect(() => { setLogoDraft(school?.logo_data_url || ""); }, [school?.id, school?.logo_data_url]);
+  useEffect(() => {
+    if (!printStudentId || page !== "Élèves") return;
+    const timer = window.setTimeout(() => window.print(), 150);
+    return () => window.clearTimeout(timer);
+  }, [printStudentId, page]);
 
   useEffect(() => {
     let active = true;
@@ -195,7 +200,7 @@ export default function App() {
       setMessage(editingStudentId ? "Dossier de l’élève mis à jour." : "Élève inscrit."); setShowAdd(false); setEditingStudentId(null); setStudentForm({ first_name: "", last_name: "", student_number: "", gender: "", class_id: "" }); await loadSchool();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  function printStudent(student: Student) { setPrintStudentId(student.id); window.setTimeout(() => window.print(), 100); }
+  function printStudent(student: Student) { setPrintStudentId(student.id); setPage("Élèves"); }
   function editStudent(student: Student) {
     setEditingStudentId(student.id);
     setStudentForm({ first_name: student.first_name, last_name: student.last_name, student_number: student.student_number, gender: student.gender || "", class_id: student.class_id || "" });
