@@ -224,3 +224,39 @@
 .branding-controls{min-width:0;display:grid;gap:14px}.upload-dropzone{min-height:112px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;padding:18px;border:1px dashed #9dbbe0;border-radius:14px;background:#f7faff;color:#2869b8;cursor:pointer;transition:background .18s,border-color .18s}.upload-dropzone:hover{background:#edf5ff;border-color:#4c8cdb}.upload-dropzone strong{font-size:12px;color:#214d7c}.upload-dropzone span{font-size:10px;color:#7a8da4}.upload-dropzone input{width:100%;font-size:11px;background:transparent;border:0;padding:0}.branding-controls>.muted{font-size:11px;line-height:1.7;margin:0}
 .branding-actions{display:flex;flex-wrap:wrap;gap:10px}.branding-actions .primary,.branding-actions .secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px}.theme-preview-logo{width:42px;height:42px;object-fit:contain;border-radius:10px;background:#fff;padding:4px}
 @media(max-width:760px){.app-layout .topbar{height:64px;padding:0 16px}.app-layout .content{padding:23px 14px 40px}.app-layout .panel{padding:17px;border-radius:14px}.app-layout .page-title{align-items:flex-start;flex-direction:column}.branding-layout{grid-template-columns:1fr}.logo-preview{width:150px;height:150px}.branding-actions{flex-direction:column;align-items:stretch}.app-layout .stats{grid-template-columns:1fr}.app-layout .stat{padding:17px}}
+
+
+/* Correctif : le menu complet reste accessible, même sur les écrans peu hauts. */
+.app-layout .sidebar {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff45 transparent;
+}
+.app-layout .sidebar > .brand,
+.app-layout .sidebar > .school-chip,
+.app-layout .sidebar > .nav-title,
+.app-layout .sidebar > nav,
+.app-layout .sidebar > .sidebar-foot {
+  flex-shrink: 0;
+}
+.app-layout .sidebar > nav {
+  display: grid;
+  gap: 5px;
+}
+.app-layout .sidebar > .sidebar-foot {
+  margin-top: auto;
+  padding-bottom: max(2px, env(safe-area-inset-bottom));
+}
+@media (max-height: 760px) and (min-width: 701px) {
+  .app-layout .sidebar { padding-top: 16px; padding-bottom: 12px; }
+  .app-layout .sidebar .brand { padding-bottom: 14px; }
+  .app-layout .school-chip { margin-top: 12px; margin-bottom: 16px; }
+  .app-layout .nav-title { padding-bottom: 7px; }
+  .app-layout .nav-item { min-height: 38px; margin: 1px 0; }
+  .app-layout .sidebar-foot { padding-top: 10px; }
+  .app-layout .user-line { padding-bottom: 8px; }
+}
