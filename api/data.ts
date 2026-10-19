@@ -69,13 +69,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const created = await client.query("insert into schools(name,slug) values($1,$2) returning id,name,academic_year", [name,slug]);
         const school = created.rows[0];
         await client.query("insert into school_memberships(school_id,user_id,role,active) values($1,$2,'school_director',true)", [school.id,user.id]);
-        await client.query("insert into school_subscriptions(school_id,plan_code,status,monthly_price_xof,student_limit) values($1,'essentiel','trial',5000,100) on conflict(school_id) do nothing", [school.id]);
+        await client.query("insert into school_subscriptions(school_id,plan_code,status,monthly_price_xof,student_limit,current_period_start,current_period_end) values($1,'essentiel','trial',5000,100,now(),now()+interval '14 days') on conflict(school_id) do update set current_period_start=coalesce(school_subscriptions.current_period_start,now()),current_period_end=coalesce(school_subscriptions.current_period_end,now()+interval '14 days')", [school.id]);
         await client.query("commit");
         return res.status(201).json({ok:true,school});
       } catch (e) { await client.query("rollback"); throw e; } finally { client.release(); }
     }
     const school = await schoolFor(user.id);
     if (!school) return bad(res, "Crée d’abord l’établissement.", 404);
+    const trialCheck = await db.query("select status,current_period_end from school_subscriptions where school_id=$1", [school.id]);
+    const currentSubscription = trialCheck.rows[0];
+    if (currentSubscription?.status === "trial" && currentSubscription.current_period_end && new Date(currentSubscription.current_period_end).getTime() <= Date.now()) return bad(res, "Votre essai gratuit de 14 jours est terminé. Choisissez un abonnement dans la rubrique Abonnement pour continuer.", 402);
     if (school.role !== "school_director" && !["teacher","accountant","secretary"].includes(school.role)) return bad(res,"Accès refusé.",403);
 
     if (action === "updateAcademicYear") {
