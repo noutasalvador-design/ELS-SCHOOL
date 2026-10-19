@@ -9,6 +9,11 @@ const planDefaults = [
   { code: "illimite", name: "Illimité", monthly_price_xof: 25000, student_limit: null },
 ];
 function bad(res: VercelResponse, message: string, status = 400) { return res.status(status).json({ ok: false, message }); }
+let logoSchemaReady: Promise<void> | null = null;
+async function ensureLogoSchema() {
+  if (!logoSchemaReady) logoSchemaReady = db.query("alter table schools add column if not exists logo_data_url text").then(() => undefined).catch(error => { logoSchemaReady = null; throw error; });
+  await logoSchemaReady;
+}
 async function schoolFor(userId: string) {
   const result = await db.query(
     `select s.id,s.name,s.academic_year,s.logo_data_url,m.role from school_memberships m join schools s on s.id=m.school_id
@@ -20,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await currentUser(req);
   if (!user) return bad(res, "Session expirée. Reconnecte-toi.", 401);
   try {
-    await db.query("alter table schools add column if not exists logo_data_url text");
+    await ensureLogoSchema();
     if (req.method === "GET") {
       const action = String(req.query.action || "overview");
       if (action === "plans") {
