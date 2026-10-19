@@ -11,7 +11,7 @@ const planDefaults = [
 function bad(res: VercelResponse, message: string, status = 400) { return res.status(status).json({ ok: false, message }); }
 async function schoolFor(userId: string) {
   const result = await db.query(
-    `select s.id,s.name,s.academic_year,m.role from school_memberships m join schools s on s.id=m.school_id
+    `select s.id,s.name,s.academic_year,s.logo_data_url,m.role from school_memberships m join schools s on s.id=m.school_id
      where m.user_id=$1 and m.active=true order by m.created_at asc limit 1`, [userId]);
   return result.rows[0] ?? null;
 }
@@ -20,6 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await currentUser(req);
   if (!user) return bad(res, "Session expirée. Reconnecte-toi.", 401);
   try {
+    await db.query("alter table schools add column if not exists logo_data_url text");
     if (req.method === "GET") {
       const action = String(req.query.action || "overview");
       if (action === "plans") {
@@ -37,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           db.query("select plan_code,status,monthly_price_xof,student_limit,current_period_end from school_subscriptions where school_id=$1", [school.id]),
           db.query("select code,name,monthly_price_xof,student_limit from subscription_plans where active=true order by monthly_price_xof")
         ]);
-        return res.status(200).json({ ok: true, school: { id: school.id, name: school.name, academic_year: school.academic_year }, students: students.rows, classes: classes.rows, grades: grades.rows, payments: payments.rows, subscription: subscription.rows[0] ?? null, plans: plans.rows.length ? plans.rows : planDefaults });
+        return res.status(200).json({ ok: true, school: { id: school.id, name: school.name, academic_year: school.academic_year, logo_data_url: school.logo_data_url ?? null }, students: students.rows, classes: classes.rows, grades: grades.rows, payments: payments.rows, subscription: subscription.rows[0] ?? null, plans: plans.rows.length ? plans.rows : planDefaults });
       }
       if (!school) return bad(res, "Crée d’abord l’établissement.", 404);
       if (action === "attendance") {
@@ -81,6 +82,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (currentSubscription?.status === "trial" && currentSubscription.current_period_end && new Date(currentSubscription.current_period_end).getTime() <= Date.now()) return bad(res, "Votre essai gratuit de 14 jours est terminé. Choisissez un abonnement dans la rubrique Abonnement pour continuer.", 402);
     if (school.role !== "school_director" && !["teacher","accountant","secretary"].includes(school.role)) return bad(res,"Accès refusé.",403);
 
+    if (action === "updateSchoolLogo") {
+      if (school.role !== "school_director") return bad(res, "Seule la direction peut modifier le logo.", 403);
+      const logo = body.logo_data_url;
+      if (logo !== null && (typeof logo !== "string" || logo.length > 1400000 || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(logo))) return bad(res, "Image invalide. Utilise un fichier PNG, JPG ou WebP de 1 Mo maximum.");
+      const updated = await db.query("update schools set logo_data_url=$1 where id=$2 returning id,name,academic_year,logo_data_url", [logo, school.id]);
+      return res.status(200).json({ ok: true, school: updated.rows[0] });
+    }
     if (action === "updateAcademicYear") {
       if (school.role !== "school_director") return bad(res, "Seule la direction peut modifier l’année scolaire.", 403);
       const academicYear = String(body.academic_year || "").trim();
