@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { randomUUID } from "node:crypto";
-import { db } from "./_lib/db";
-import { currentUser, methodNotAllowed } from "./_lib/auth";
+import { db } from "./_lib/db.js";
+import { currentUser, methodNotAllowed } from "./_lib/auth.js";
 
 const planDefaults = [
   { code: "essentiel", name: "Essentiel", monthly_price_xof: 5000, student_limit: 100 },
