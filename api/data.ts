@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { randomUUID } from "node:crypto";
 import { db } from "./_lib/db.js";
 import { currentUser, methodNotAllowed } from "./_lib/auth.js";
+import { recordSchoolAudit } from "./_lib/audit.js";
 
 const planDefaults = [
   { code: "essentiel", name: "Essentiel", monthly_price_xof: 5000, student_limit: 100 },
@@ -80,6 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await client.query("insert into school_memberships(school_id,user_id,role,active) values($1,$2,'school_director',true)", [school.id,user.id]);
         await client.query("insert into school_subscriptions(school_id,plan_code,status,monthly_price_xof,student_limit,current_period_start,current_period_end) values($1,'essentiel','trial',5000,100,now(),now()+interval '14 days') on conflict(school_id) do update set current_period_start=coalesce(school_subscriptions.current_period_start,now()),current_period_end=coalesce(school_subscriptions.current_period_end,now()+interval '14 days')", [school.id]);
         await client.query("commit");
+        await recordSchoolAudit(user.id,user.email,school.id,"create_school",{name:school.name});
         return res.status(201).json({ok:true,school});
       } catch (e) { await client.query("rollback"); throw e; } finally { client.release(); }
     }
@@ -119,6 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (end !== start + 1) return bad(res, "L’année de fin doit suivre l’année de début.");
       const updated = await db.query("update schools set academic_year=$1 where id=$2 returning id,name,academic_year", [academicYear, school.id]);
       await db.query("update classes set academic_year=$1 where school_id=$2", [academicYear, school.id]);
+      await recordSchoolAudit(user.id,user.email,school.id,"update_academic_year",{academic_year:academicYear});
       return res.status(200).json({ ok: true, school: updated.rows[0] });
     }
     if (action === "addFeeAssignment") {
@@ -206,6 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!classCheck.rowCount) return bad(res,"La classe sélectionnée n’appartient pas à cet établissement.",403);
       }
       const result = await db.query("insert into students(school_id,student_number,first_name,last_name,gender,class_id,status) values($1,$2,$3,$4,$5,$6,'active') returning id", [school.id,studentNumber,firstName,lastName,gender,classId]);
+      await recordSchoolAudit(user.id,user.email,school.id,"add_student",{student_id:result.rows[0].id});
       return res.status(201).json({ok:true,id:result.rows[0].id});
     }
     if (action === "addClass") {
@@ -214,6 +218,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const level = String(body.level || "CI");
       if (!name || !["CI","CP","CE1","CE2","CM1","CM2"].includes(level)) return bad(res,"Nom ou niveau de classe invalide.");
       const result = await db.query("insert into classes(school_id,name,level,academic_year) values($1,$2,$3,$4) returning id", [school.id,name,level,school.academic_year]);
+      await recordSchoolAudit(user.id,user.email,school.id,"add_class",{class_id:result.rows[0].id,name,level});
       return res.status(201).json({ok:true,id:result.rows[0].id});
     }
     if (action === "saveAttendance") {
@@ -242,6 +247,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!student.rowCount) return bad(res,"Élève introuvable dans cet établissement.",403);
       await db.query("insert into grades(school_id,student_id,subject,term,score,coefficient,comment,recorded_by) values($1,$2,$3,$4,$5,$6,$7,$8)",
         [school.id,body.student_id,String(body.subject).trim(),String(body.term||"Trimestre 1"),score,coefficient,String(body.comment||"").trim()||null,user.id]);
+      await recordSchoolAudit(user.id,user.email,school.id,"add_grade",{student_id:body.student_id,subject:String(body.subject).trim(),term:String(body.term||"Trimestre 1")});
       return res.status(201).json({ok:true});
     }
     if (action === "addPayment") {
@@ -253,6 +259,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const receipt = "ELS-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + randomUUID().slice(0,6).toUpperCase();
       await db.query("insert into fee_payments(school_id,student_id,receipt_number,amount_xof,payment_method,note,recorded_by) values($1,$2,$3,$4,$5,$6,$7)",
         [school.id,body.student_id,receipt,amount,body.payment_method,String(body.note||"").trim()||null,user.id]);
+      await recordSchoolAudit(user.id,user.email,school.id,"add_fee_payment",{student_id:body.student_id,receipt,amount_xof:amount});
       return res.status(201).json({ok:true,receipt});
     }
     return bad(res,"Action inconnue.");
