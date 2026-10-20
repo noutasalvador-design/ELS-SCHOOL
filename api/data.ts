@@ -85,9 +85,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const school = await schoolFor(user.id);
     if (!school) return bad(res, "Crée d’abord l’établissement.", 404);
-    const trialCheck = await db.query("select status,coalesce(current_period_end,created_at + interval '14 days') as current_period_end from school_subscriptions where school_id=$1", [school.id]);
-    const currentSubscription = trialCheck.rows[0];
-    if (currentSubscription?.status === "trial" && currentSubscription.current_period_end && new Date(currentSubscription.current_period_end).getTime() <= Date.now()) return bad(res, "Votre essai gratuit de 14 jours est terminé. Choisissez un abonnement dans la rubrique Abonnement pour continuer.", 402);
+    const subscriptionCheck = await db.query(
+      "select status,current_period_end,created_at + interval '14 days' as trial_fallback_end from school_subscriptions where school_id=$1",
+      [school.id]
+    );
+    const currentSubscription = subscriptionCheck.rows[0];
+    const nowMs = Date.now();
+    const trialEnd = currentSubscription?.current_period_end ?? currentSubscription?.trial_fallback_end;
+    const paidEnd = currentSubscription?.current_period_end;
+    const trialValid = currentSubscription?.status === "trial" && trialEnd && new Date(trialEnd).getTime() > nowMs;
+    const paidValid = currentSubscription?.status === "active" && paidEnd && new Date(paidEnd).getTime() > nowMs;
+    if (!trialValid && !paidValid) {
+      return bad(
+        res,
+        "L’abonnement de cet établissement est expiré ou inactif. Choisis un forfait et finalise le paiement pour reprendre les modifications.",
+        402
+      );
+    }
     if (school.role !== "school_director" && !["teacher","accountant","secretary"].includes(school.role)) return bad(res,"Accès refusé.",403);
 
     if (action === "updateSchoolLogo") {
