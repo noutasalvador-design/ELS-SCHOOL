@@ -54,7 +54,8 @@ export default async function handler(req: VercelRequest,res: VercelResponse) {
     const paid=["PAID","SUCCESS","SUCCEEDED","COMPLETED"].includes(normalized)&&(!transaction||["SUCCESS","SUCCEEDED","COMPLETED","PAID"].includes(transaction));
     if(!paid)return res.status(200).json({ok:true,activated:false});
     const amount=status?.amount??status?.requested_amount??status?.amounts?.requested;
-    if(amount!==undefined&&Number(amount)!==Number(payment.amount_xof))return res.status(400).json({ok:false});
+    // Never activate a subscription unless SasPay's status endpoint confirms the exact expected amount.
+    if(amount===undefined||amount===null||!Number.isFinite(Number(amount))||Number(amount)!==Number(payment.amount_xof))return res.status(400).json({ok:false});
     if(status?.currency&&String(status.currency).toUpperCase()!=="XOF")return res.status(400).json({ok:false});
     const plan=PLAN_CATALOG[payment.plan_code as keyof typeof PLAN_CATALOG];
     if(!plan||plan.amount!==Number(payment.amount_xof))return res.status(400).json({ok:false});
