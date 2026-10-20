@@ -6,7 +6,7 @@ SaaS simple de gestion scolaire pour les écoles primaires au Bénin, sans porta
 
 - Création de compte et connexion e-mail/mot de passe avec session en cookie HttpOnly.
 - Création d’un espace privé par établissement.
-- Gestion des élèves et des classes CI, CP, CE1, CE2, CM1 et CM2, avec matricule automatique, modification et archivage des dossiers.
+- Gestion des élèves et des classes CI, CP, CE1, CE2, CM1 et CM2, avec matricule automatique, modification, archivage, fiches imprimables, import CSV et export CSV.
 - Frais scolaires définis par classe ou par élève, échéances et tableau des montants attendus, encaissés et restant à payer.
 - Gestion des accès d’équipe par rôle : direction, enseignant, secrétariat et comptabilité (comptes créés séparément puis rattachés par la direction).
 - Présences quotidiennes.
@@ -14,6 +14,8 @@ SaaS simple de gestion scolaire pour les écoles primaires au Bénin, sans porta
 - Enregistrement des paiements de scolarité en FCFA et reçus imprimables.
 - Abonnements SaaS : Essentiel 5 000 FCFA (100 élèves), Standard 10 000 FCFA (300 élèves), Illimité 25 000 FCFA.
 - SasPay : démarrage de checkout et traitement serveur du webhook (à valider avec les identifiants réels).
+- Administration globale ELS distincte des comptes des écoles : suivi des établissements, abonnements, encaissements SasPay, suspensions/réactivations, exports CSV et journaux.
+- Protection contre les tentatives répétées de connexion/inscription et journal d’activité des opérations scolaires principales.
 
 ## Architecture actuelle
 
@@ -27,7 +29,7 @@ SaaS simple de gestion scolaire pour les écoles primaires au Bénin, sans porta
 - `database/neon-schema.sql` définit le schéma PostgreSQL.
 - `database/migrations/2026-10-neon-payments.sql` ajoute le registre des paiements SasPay.
 - `database/migrations/2026-10-school-fees.sql` crée la table et les index des frais scolaires. Exécute ce script dans Neon SQL Editor avant d’utiliser le module de frais.
-- `docs/NEON-VERCEL.md` contient les étapes de configuration.
+- `docs/NEON-VERCEL.md` contient les étapes de configuration. `docs/OPERATIONS-SECURITY-BACKUPS.md` détaille les sauvegardes, restaurations, tests de sécurité et validation SasPay.
 
 Les anciens scripts dans `supabase/` sont conservés comme références pour l’ancienne version, mais l’application migrée n’en dépend plus. Les comptes et données qui se trouvaient déjà dans Supabase ne sont **pas copiés automatiquement** vers Neon. Si tu as des données à conserver, exporte-les et importe-les dans Neon avant de fermer l’ancien projet.
 
@@ -48,7 +50,7 @@ Sous macOS/Linux, utilise `cp .env.example .env`. Remplis `.env` avec les vraies
 1. Crée un projet Neon sur https://neon.tech/.
 2. Dans Neon SQL Editor, exécute `database/neon-schema.sql` sur une base neuve.
 3. Exécute ensuite `database/migrations/2026-10-neon-payments.sql`.
-4. Dans Vercel → Project Settings → Environment Variables, ajoute `DATABASE_URL` (connexion pooler recommandée), `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL`, `SASPAY_API_KEY` et `SASPAY_WEBHOOK_SECRET`. Ne colle jamais ces secrets dans une conversation ou dans GitHub.
+4. Dans Vercel → Project Settings → Environment Variables, ajoute `DATABASE_URL` (connexion pooler recommandée), `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL`, `SASPAY_API_KEY`, `SASPAY_WEBHOOK_SECRET` et `ELS_PLATFORM_ADMIN_EMAIL` (adresse exacte du compte administrateur global). Ne colle jamais ces secrets dans une conversation ou dans GitHub.
 5. Configure dans le tableau de bord SasPay le webhook `https://TON-DOMAINE/api/saspay/callback`.
 6. Redéploie, puis teste `/api/health`. Le résultat attendu est `{"ok":true,"service":"els-school-manager","database":"connected"}`.
 
