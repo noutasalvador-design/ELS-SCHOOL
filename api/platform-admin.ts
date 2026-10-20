@@ -13,6 +13,16 @@ async function ensureAdminSchema() {
       created_at timestamptz not null default now()
     );
     create index if not exists platform_admin_audit_created_idx on platform_admin_audit(created_at desc);
+    create table if not exists school_activity_log (
+      id bigserial primary key,
+      school_id uuid not null references schools(id) on delete cascade,
+      actor_user_id uuid references app_users(id) on delete set null,
+      actor_email text not null,
+      action text not null,
+      details jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    );
+    create index if not exists school_activity_log_school_created_idx on school_activity_log(school_id,created_at desc);
   `);
 }
 
@@ -27,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     await ensureAdminSchema();
     if (req.method === "GET") {
-      const [summary, schools, payments, audit] = await Promise.all([
+      const [summary, schools, payments, audit, schoolActivity] = await Promise.all([
         db.query(`select
           (select count(*)::int from schools) as schools_total,
           (select count(*)::int from schools where status <> 'suspended') as schools_active,
@@ -44,9 +54,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         db.query(`select p.id,p.school_id,s.name as school_name,p.plan_code,p.amount_xof,p.currency,p.reference,p.status,p.created_at,p.paid_at
           from school_payment_transactions p join schools s on s.id=p.school_id
           order by p.created_at desc limit 100`),
-        db.query(`select id,actor_email,action,school_id,details,created_at from platform_admin_audit order by created_at desc limit 100`)
+        db.query(`select id,actor_email,action,school_id,details,created_at from platform_admin_audit order by created_at desc limit 100`),
+        db.query("select l.id,l.actor_email,l.action,l.school_id,s.name as school_name,l.details,l.created_at from school_activity_log l join schools s on s.id=l.school_id order by l.created_at desc limit 100")
       ]);
-      return res.status(200).json({ ok:true, isPlatformAdmin:true, summary:summary.rows[0], schools:schools.rows, payments:payments.rows, audit:audit.rows });
+      return res.status(200).json({ ok:true, isPlatformAdmin:true, summary:summary.rows[0], schools:schools.rows, payments:payments.rows, audit:audit.rows, schoolActivity:schoolActivity.rows });
     }
     const body = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : {};
     const action = typeof body.action === "string" ? body.action : "";
