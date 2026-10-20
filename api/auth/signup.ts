@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { db } from "../_lib/db.js";
 import { hashPassword, issueSession, methodNotAllowed } from "../_lib/auth.js";
+import { enforceAuthRateLimit } from "../_lib/security.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, "POST");
