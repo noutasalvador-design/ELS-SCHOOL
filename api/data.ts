@@ -192,6 +192,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const updated = await db.query("update students set student_number=$1,first_name=$2,last_name=$3,gender=$4,class_id=$5 where id=$6 and school_id=$7 returning id", [studentNumber,firstName,lastName,gender,classId,id,school.id]);
       if (!updated.rowCount) return bad(res, "Élève introuvable dans cet établissement.", 404);
+      await recordSchoolAudit(user.id,user.email,school.id,"update_student",{student_id:id});
       return res.status(200).json({ok:true});
     }
     if (action === "archiveStudent") {
@@ -242,6 +243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             [school.id,row.student_id,row.attendance_date,status,user.id]);
         }
         await client.query("commit");
+        await recordSchoolAudit(user.id,user.email,school.id,"save_attendance",{count:body.rows.length});
         return res.status(200).json({ok:true});
       } catch(e) { await client.query("rollback"); if ((e as Error).message==="STUDENT_SCOPE") return bad(res,"Un élève n’appartient pas à cet établissement.",403); throw e; } finally { client.release(); }
     }
