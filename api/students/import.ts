@@ -20,9 +20,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const school = membership.rows[0];
     if (!school) return res.status(404).json({ ok: false, message: "Aucun établissement associé." });
     if (!["school_director", "secretary"].includes(school.role)) return res.status(403).json({ ok: false, message: "Ton rôle ne permet pas d’importer des élèves." });
-    const subscription = await db.query("select status,current_period_end from school_subscriptions where school_id=$1",[school.id]);
+    const subscription = await db.query("select status,current_period_end,created_at + interval '14 days' as trial_fallback_end from school_subscriptions where school_id=$1",[school.id]);
     const sub = subscription.rows[0];
-    const valid = sub && ((sub.status === "active" && sub.current_period_end && new Date(sub.current_period_end).getTime() > Date.now()) || (sub.status === "trial" && sub.current_period_end && new Date(sub.current_period_end).getTime() > Date.now()));
+    const subscriptionEnd = sub?.current_period_end ?? sub?.trial_fallback_end;
+    const valid = sub && subscriptionEnd && new Date(subscriptionEnd).getTime() > Date.now() && ["active","trial"].includes(sub.status);
     if (!valid) return res.status(402).json({ ok: false, message: "L’abonnement ou l’essai est expiré." });
     const client = await db.connect();
     let imported = 0;
