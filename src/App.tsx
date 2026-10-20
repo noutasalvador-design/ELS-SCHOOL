@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, type AppUser } from "./lib/api";
 import { BookOpen, GraduationCap, LayoutDashboard, LogOut, Plus, Search, School, Wallet, CalendarCheck, FileText, Users, CheckCircle2, ReceiptText, CreditCard, BadgeCheck, Palette, ArrowRight, ShieldCheck, Sparkles, ImagePlus, Upload, Settings2 } from "lucide-react";
 import "./styles.css";
+import { downloadCsv } from "./lib/csv";
 
 
 
@@ -37,6 +38,10 @@ function studentLabel(student: Student | undefined) {
 
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [platformAdminChecked, setPlatformAdminChecked] = useState(false);
+  const [platformAdminData, setPlatformAdminData] = useState<any>(null);
+  const [platformAdminBusy, setPlatformAdminBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [showAuth, setShowAuth] = useState(false);
@@ -101,6 +106,27 @@ export default function App() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) { setIsPlatformAdmin(false); setPlatformAdminData(null); setPlatformAdminChecked(true); return; }
+    setPlatformAdminChecked(false);
+    api<any>("/api/platform-admin").then(result => { if (active) { setIsPlatformAdmin(true); setPlatformAdminData(result); } })
+      .catch(() => { if (active) { setIsPlatformAdmin(false); setPlatformAdminData(null); } })
+      .finally(() => { if (active) setPlatformAdminChecked(true); });
+    return () => { active = false; };
+  }, [user]);
+
+  async function refreshPlatformAdmin() {
+    setPlatformAdminBusy(true); setError("");
+    try { const result = await api<any>("/api/platform-admin"); setPlatformAdminData(result); setIsPlatformAdmin(true); }
+    catch (e) { setError((e as Error).message); } finally { setPlatformAdminBusy(false); }
+  }
+  async function updatePlatformSchool(schoolId: string, action: "suspendSchool" | "reactivateSchool") {
+    setPlatformAdminBusy(true); setError(""); setMessage("");
+    try { const result = await api<any>("/api/platform-admin", { method: "POST", body: JSON.stringify({ action, school_id: schoolId }) }); setMessage(result.message || "Modification enregistrée."); await refreshPlatformAdmin(); }
+    catch (e) { setError((e as Error).message); } finally { setPlatformAdminBusy(false); }
+  }
 
   useEffect(() => {
     if (user) void loadSchool();
@@ -368,6 +394,13 @@ export default function App() {
     {error && <p className="error">{error}</p>}{message && <p className="success">{message}</p>}
     <p className="switch-auth">{authMode === "login" ? "Pas encore de compte ?" : "Vous avez déjà un compte ?"} <button onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setError(""); setMessage(""); }}>{authMode === "login" ? "Créer un compte" : "Se connecter"}</button></p>
   </section></div></div>;
+
+  if (user && !platformAdminChecked && !school) return <div className="center-page">Vérification de l’espace administrateur…</div>;
+  if (isPlatformAdmin) return <div className="app-layout"><aside className="sidebar"><Brand/><div className="school-chip"><div className="school-avatar"><ShieldCheck size={21}/></div><div><small>ESPACE PRIVILÉGIÉ</small><strong>Administration ELS</strong><span className="school-year-mini">Plateforme SaaS</span></div></div><span className="nav-title">CONTRÔLE DE LA PLATEFORME</span><nav><button className="nav-item active"><LayoutDashboard size={18}/>Vue d’ensemble</button><button className="nav-item" onClick={() => document.getElementById("platform-schools")?.scrollIntoView({behavior:"smooth"})}><School size={18}/>Établissements</button><button className="nav-item" onClick={() => document.getElementById("platform-payments")?.scrollIntoView({behavior:"smooth"})}><Wallet size={18}/>Paiements SasPay</button><button className="nav-item" onClick={() => document.getElementById("platform-audit")?.scrollIntoView({behavior:"smooth"})}><ShieldCheck size={18}/>Journal d’activité</button></nav><div className="sidebar-foot"><div className="user-line"><div className="user-avatar">{user.email.slice(0,1).toUpperCase()}</div><div><strong>Administrateur</strong><small>{user.email}</small></div></div><button className="logout" onClick={signOut}><LogOut size={16}/> Déconnexion</button></div></aside><main className="main"><header className="topbar"><div><span className="muted">ELS SCHOOL /</span> <strong>Administration de la plateforme</strong></div><div className="topbar-tools"><button className="secondary" disabled={platformAdminBusy} onClick={() => void refreshPlatformAdmin()}>{platformAdminBusy ? "Actualisation…" : "Actualiser les données"}</button></div></header><div className="content"><div className="page-title"><div><span className="eyebrow">ESPACE ADMINISTRATEUR ELS</span><h1>Vue d’ensemble</h1><p className="muted">Suivi global des écoles, des abonnements et des encaissements. Cet espace est indépendant des directions d’école.</p></div></div>{error && <div className="alert error">{error}</div>}{message && <div className="alert success">{message}</div>}
+    <div className="stats"><Stat icon={<School/>} label="Établissements" value={String(platformAdminData?.summary?.schools_total ?? 0)}/><Stat icon={<CheckCircle2/>} label="Établissements non suspendus" value={String(platformAdminData?.summary?.schools_active ?? 0)}/><Stat icon={<Users/>} label="Comptes utilisateurs" value={String(platformAdminData?.summary?.users_total ?? 0)}/><Stat icon={<GraduationCap/>} label="Élèves actifs" value={String(platformAdminData?.summary?.students_total ?? 0)}/><Stat icon={<Wallet/>} label="Revenus du mois" value={money(Number(platformAdminData?.summary?.revenue_month_xof ?? 0))}/><Stat icon={<CreditCard/>} label="Paiements en attente" value={String(platformAdminData?.summary?.payments_pending ?? 0)}/></div>
+    <section className="panel" id="platform-schools"><div className="panel-head"><div><h2>Établissements inscrits</h2><p>Forfait, nombre d’élèves, statut et date de fin.</p></div><button className="secondary" onClick={() => downloadCsv("els-school-etablissements.csv", platformAdminData?.schools || [])}>Exporter CSV</button></div><div className="table-wrap"><table><thead><tr><th>ÉTABLISSEMENT</th><th>STATUT</th><th>FORFAIT</th><th>ÉLÈVES</th><th>FIN D’ABONNEMENT</th><th>ACTIONS</th></tr></thead><tbody>{(platformAdminData?.schools || []).map((item:any)=><tr key={item.id}><td><strong>{item.name}</strong><small>{new Date(item.created_at).toLocaleDateString("fr-FR")}</small></td><td><span className="pill">{item.subscription_status || item.school_status || "inconnu"}</span></td><td>{item.plan_code || "—"} · {money(Number(item.monthly_price_xof || 0))}</td><td>{item.active_students} / {item.student_limit == null ? "∞" : item.student_limit}</td><td>{item.current_period_end ? new Date(item.current_period_end).toLocaleDateString("fr-FR") : "—"}</td><td>{item.subscription_status === "suspended" || item.school_status === "suspended" ? <button className="secondary" disabled={platformAdminBusy} onClick={() => void updatePlatformSchool(item.id,"reactivateSchool")}>Réactiver</button> : <button className="secondary danger-link" disabled={platformAdminBusy} onClick={() => void updatePlatformSchool(item.id,"suspendSchool")}>Suspendre</button>}</td></tr>)}</tbody></table>{!(platformAdminData?.schools || []).length && <p className="empty">Aucun établissement pour le moment.</p>}</div></section>
+    <section className="panel" id="platform-payments"><div className="panel-head"><div><h2>Historique des paiements SasPay</h2><p>Les transactions récentes remontées dans le registre Neon.</p></div><button className="secondary" onClick={() => downloadCsv("els-school-paiements.csv", platformAdminData?.payments || [])}>Exporter CSV</button></div><div className="table-wrap"><table><thead><tr><th>DATE</th><th>ÉTABLISSEMENT</th><th>FORFAIT</th><th>MONTANT</th><th>RÉFÉRENCE</th><th>STATUT</th></tr></thead><tbody>{(platformAdminData?.payments || []).map((p:any)=><tr key={p.id}><td>{new Date(p.created_at).toLocaleDateString("fr-FR")}</td><td>{p.school_name}</td><td>{p.plan_code}</td><td>{money(Number(p.amount_xof))}</td><td>{p.reference}</td><td><span className="pill">{p.status}</span></td></tr>)}</tbody></table>{!(platformAdminData?.payments || []).length && <p className="empty">Aucun paiement enregistré.</p>}</div></section>
+    <section className="panel" id="platform-audit"><div className="panel-head"><div><h2>Journal d’administration</h2><p>Traçabilité des suspensions et réactivations effectuées depuis cet espace.</p></div></div><div className="table-wrap"><table><thead><tr><th>DATE</th><th>ADMINISTRATEUR</th><th>ACTION</th><th>DÉTAILS</th></tr></thead><tbody>{(platformAdminData?.audit || []).map((a:any)=><tr key={a.id}><td>{new Date(a.created_at).toLocaleString("fr-FR")}</td><td>{a.actor_email}</td><td>{a.action}</td><td>{a.details?.school_name || a.school_id || "—"}</td></tr>)}</tbody></table>{!(platformAdminData?.audit || []).length && <p className="empty">Les actions administrateur apparaîtront ici.</p>}</div></section><footer>© {new Date().getFullYear()} ELS SCHOOL MANAGER <span>Administration de la plateforme</span></footer></div></main></div>;
 
   if (!school) return <div className="center-page"><section className="auth-card"><Brand/><p className="eyebrow">DERNIÈRE ÉTAPE</p><h1>Configure ton école</h1><p className="muted">Le compte est connecté. Donne un nom à ton établissement pour créer ton espace privé.</p><form onSubmit={createSchool} className="form-stack"><label>Nom de l’école<input required minLength={3} maxLength={120} value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="Ex. École Primaire Les Pionniers"/></label><button className="primary full" disabled={busy}>{busy ? "Création…" : "Créer mon établissement"}</button></form>{error && <p className="error">{error}</p>}{message && <p className="success">{message}</p>}<button className="link-button" onClick={signOut}>Se déconnecter</button></section></div>;
 
