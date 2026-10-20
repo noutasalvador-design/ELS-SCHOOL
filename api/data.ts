@@ -111,6 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const logo = body.logo_data_url;
       if (logo !== null && (typeof logo !== "string" || logo.length > 1400000 || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(logo))) return bad(res, "Image invalide. Utilise un fichier PNG, JPG ou WebP de 1 Mo maximum.");
       const updated = await db.query("update schools set logo_data_url=$1 where id=$2 returning id,name,academic_year,logo_data_url", [logo, school.id]);
+      await recordSchoolAudit(user.id,user.email,school.id,"update_school_logo");
       return res.status(200).json({ ok: true, school: updated.rows[0] });
     }
     if (action === "updateAcademicYear") {
@@ -142,6 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       await db.query("insert into school_fee_assignments(school_id,title,amount_xof,class_id,student_id,academic_year,due_date,created_by) values($1,$2,$3,$4,$5,$6,$7,$8)",
         [school.id,title,amount,classId || null,studentId || null,school.academic_year,dueDate,user.id]);
+      await recordSchoolAudit(user.id,user.email,school.id,"add_fee_assignment",{title,amount_xof:amount});
       return res.status(201).json({ok:true});
     }
     if (action === "addMember") {
@@ -153,6 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!account.rowCount) return bad(res, "Ce compte n’existe pas encore. Demande à cette personne de créer son compte ELS SCHOOL, puis ajoute-la ici.", 404);
       if (account.rows[0].id === user.id) return bad(res, "Tu es déjà la direction de cet établissement.");
       await db.query("insert into school_memberships(school_id,user_id,role,active) values($1,$2,$3,true) on conflict(school_id,user_id) do update set role=excluded.role,active=true", [school.id,account.rows[0].id,role]);
+      await recordSchoolAudit(user.id,user.email,school.id,"add_member",{member_email:email,role});
       return res.status(201).json({ok:true});
     }
     if (action === "updateMember") {
@@ -162,6 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!membershipId || !["teacher","accountant","secretary"].includes(role)) return bad(res, "Membre ou rôle invalide.");
       const result = await db.query("update school_memberships set role=$1 where id=$2 and school_id=$3 and role <> 'school_director' returning id", [role,membershipId,school.id]);
       if (!result.rowCount) return bad(res, "Membre introuvable ou rôle non modifiable.", 404);
+      await recordSchoolAudit(user.id,user.email,school.id,"update_member_role",{membership_id:membershipId,role});
       return res.status(200).json({ok:true});
     }
     if (action === "removeMember") {
@@ -169,6 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const membershipId = String(body.membership_id || "");
       const result = await db.query("update school_memberships set active=false where id=$1 and school_id=$2 and role <> 'school_director' returning id", [membershipId,school.id]);
       if (!result.rowCount) return bad(res, "Membre introuvable ou rôle non modifiable.", 404);
+      await recordSchoolAudit(user.id,user.email,school.id,"remove_member",{membership_id:membershipId});
       return res.status(200).json({ok:true});
     }
     if (action === "updateStudent") {
@@ -194,6 +199,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const id = String(body.id || "");
       const updated = await db.query("update students set status='inactive' where id=$1 and school_id=$2 and status='active' returning id", [id,school.id]);
       if (!updated.rowCount) return bad(res, "Élève introuvable ou déjà archivé.", 404);
+      await recordSchoolAudit(user.id,user.email,school.id,"archive_student",{student_id:id});
       return res.status(200).json({ok:true});
     }
     if (action === "addStudent") {
