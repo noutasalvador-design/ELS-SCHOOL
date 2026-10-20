@@ -13,6 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (fullName.length < 2 || fullName.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 10 || password.length > 200) {
     return res.status(400).json({ ok: false, message: "Indique un nom, un e-mail valide et un mot de passe d’au moins 10 caractères." });
   }
+  if (!(await enforceAuthRateLimit(req, res, "signup", email))) return;
   try {
     const result = await db.query(
       "insert into app_users(full_name,email,password_hash) values($1,$2,$3) returning id,email,full_name",
