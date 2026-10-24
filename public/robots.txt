@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://els-school.vercel.app/sitemap.xml
+Sitemap: https://els-school-saas.42web.io/sitemap.xml
